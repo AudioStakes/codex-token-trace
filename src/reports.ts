@@ -234,6 +234,9 @@ const groupSummary = (group: ToolUsageGroup): string => {
   )} new input after ${plural(group.toolCount, "tool")}, ${output} output`;
 };
 
+const compactedEvents = (analysis: SessionAnalysis): EventRecord[] =>
+  analysis.events.filter((event) => event.topType === "compacted");
+
 const suggestedActions = (analysis: SessionAnalysis): string[] => {
   const topTools = toolOutputGroups(analysis.tools)
     .slice(0, 3)
@@ -281,7 +284,7 @@ export const diagnosisReport = (analysis: SessionAnalysis, limit: number): strin
     );
   }
 
-  const compacted = compactionImpacts(analysis, Number.MAX_SAFE_INTEGER);
+  const compacted = compactedEvents(analysis);
   if (compacted.length > 0) {
     const maxCompactedChars = Math.max(...compacted.map((event) => event.rawChars));
     causes.push(

@@ -126,7 +126,7 @@ describe("cli", () => {
     expect(output).toContain("Non-cached input spikes are associated with");
     expect(output).toContain("after apply_patch");
     expect(output).toContain("after 2 tools");
-    expect(output).toContain("Context compaction happened 1 time");
+    expect(output).toContain("Context compaction happened 1 time, max compacted event 955 chars.");
   });
 
   it("runs tool-usage against a synthetic fixture", () => {
