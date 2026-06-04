@@ -13,6 +13,7 @@ import {
   largeEventsTable,
   sessionSummary,
   sessionsTable,
+  type ToolUsageSort,
   timelineTable,
   toolOutputTable,
   toolUsageTable,
@@ -26,6 +27,7 @@ type ParsedArgs = Readonly<{
   minChars: number;
   json: boolean;
   execOnly: boolean;
+  toolUsageSort: ToolUsageSort;
 }>;
 
 const VERSION = "0.3.0";
@@ -36,7 +38,7 @@ Usage:
   codex-token-trace analyze [paths...] [--session text] [--limit n] [--min-chars n] [--json]
   codex-token-trace sessions [paths...] [--limit n] [--json]
   codex-token-trace tools [paths...] [--session text] [--limit n] [--exec-only]
-  codex-token-trace tool-usage [paths...] [--session text] [--limit n]
+  codex-token-trace tool-usage [paths...] [--session text] [--limit n] [--sort output-chars|next-new-input]
   codex-token-trace commands [paths...] [--session text] [--limit n] [--exec-only]
   codex-token-trace timeline [paths...] [--session text] [--limit n]
   codex-token-trace intervals [paths...] [--session text] [--limit n]
@@ -69,6 +71,7 @@ const parseArgs = (argv: string[]): ParsedArgs => {
   let minChars = 10_000;
   let json = false;
   let execOnly = false;
+  let toolUsageSort: ToolUsageSort = "output-chars";
 
   const rest = [...argv];
   const first = rest[0];
@@ -99,12 +102,19 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     } else if (arg === "--min-chars") {
       minChars = Number(rest[i + 1] ?? minChars);
       i += 1;
+    } else if (arg === "--sort") {
+      const value = rest[i + 1];
+      if (value !== "output-chars" && value !== "next-new-input") {
+        throw new Error(`Unknown tool-usage sort: ${value ?? ""}`);
+      }
+      toolUsageSort = value;
+      i += 1;
     } else {
       paths.push(arg);
     }
   }
 
-  return { command, paths, session, limit, minChars, json, execOnly };
+  return { command, paths, session, limit, minChars, json, execOnly, toolUsageSort };
 };
 
 const loadAnalyses = (paths: string[]): SessionAnalysis[] => {
@@ -210,7 +220,7 @@ export const run = (argv: string[]): number => {
     }
   } else if (args.command === "tool-usage") {
     console.log("# Tool usage impact");
-    console.log(toolUsageTable(analysis.toolUsages, args.limit));
+    console.log(toolUsageTable(analysis.toolUsages, args.limit, args.toolUsageSort));
   } else if (args.command === "timeline") {
     console.log(timelineTable(analysis, args.limit));
   } else if (args.command === "intervals") {

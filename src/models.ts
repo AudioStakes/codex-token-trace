@@ -57,6 +57,7 @@ export type ToolUsage = ToolCall &
     nextInputTokens: number | null;
     nextCachedInputTokens: number | null;
     nextNonCachedInputTokens: number | null;
+    nextNewInputRatio: number | null;
     nextOutputTokens: number | null;
     nextTotalTokens: number | null;
   }>;

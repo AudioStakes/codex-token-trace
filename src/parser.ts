@@ -161,8 +161,22 @@ const toToolCall = (tool: MutableToolCall): ToolCall => ({
   outputEvents: tool.outputEvents,
 });
 
+const nextNewInputRatio = (nextToken: TokenEvent | null): number | null => {
+  if (nextToken === null || nextToken.last.inputTokens <= 0) {
+    return null;
+  }
+  return (
+    Math.max(0, nextToken.last.inputTokens - nextToken.last.cachedInputTokens) /
+    nextToken.last.inputTokens
+  );
+};
+
 const toToolUsage = (tool: MutableToolCall, nextToken: TokenEvent | null): ToolUsage => {
   const call = toToolCall(tool);
+  const nextNonCachedInputTokens =
+    nextToken === null
+      ? null
+      : Math.max(0, nextToken.last.inputTokens - nextToken.last.cachedInputTokens);
   return {
     ...call,
     startLine: tool.startLine,
@@ -173,10 +187,8 @@ const toToolUsage = (tool: MutableToolCall, nextToken: TokenEvent | null): ToolU
     nextTokenTime: nextToken?.timestamp ?? null,
     nextInputTokens: nextToken?.last.inputTokens ?? null,
     nextCachedInputTokens: nextToken?.last.cachedInputTokens ?? null,
-    nextNonCachedInputTokens:
-      nextToken === null
-        ? null
-        : Math.max(0, nextToken.last.inputTokens - nextToken.last.cachedInputTokens),
+    nextNonCachedInputTokens,
+    nextNewInputRatio: nextNewInputRatio(nextToken),
     nextOutputTokens: nextToken?.last.outputTokens ?? null,
     nextTotalTokens: nextToken?.total.totalTokens ?? null,
   };

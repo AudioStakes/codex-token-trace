@@ -48,6 +48,8 @@ type CompactionImpact = Readonly<{
   after: TokenEvent | null;
 }>;
 
+export type ToolUsageSort = "output-chars" | "next-new-input";
+
 export type JsonReportOptions = Readonly<{
   largeEventMinChars?: number;
   limit?: number;
@@ -237,9 +239,20 @@ const toolRows = (
 export const toolOutputTable = (tools: ToolCall[], limit: number, onlyExec = false): string =>
   table(["output_chars", "events", "tool", "input_preview"], toolRows(tools, limit, onlyExec));
 
-const toolUsageRows = (toolUsages: ToolUsage[], limit: number): Array<Array<string | number>> =>
-  [...toolUsages]
-    .sort((a, b) => b.outputChars - a.outputChars)
+const sortedToolUsages = (toolUsages: ToolUsage[], sort: ToolUsageSort): ToolUsage[] =>
+  [...toolUsages].sort((a, b) => {
+    if (sort === "next-new-input") {
+      return (b.nextNonCachedInputTokens ?? -1) - (a.nextNonCachedInputTokens ?? -1);
+    }
+    return b.outputChars - a.outputChars;
+  });
+
+const toolUsageRows = (
+  toolUsages: ToolUsage[],
+  limit: number,
+  sort: ToolUsageSort,
+): Array<Array<string | number>> =>
+  sortedToolUsages(toolUsages, sort)
     .slice(0, limit)
     .map((usage) => [
       formatInt(usage.outputChars),
@@ -247,13 +260,18 @@ const toolUsageRows = (toolUsages: ToolUsage[], limit: number): Array<Array<stri
       usage.startLine ?? usage.endLine ?? "-",
       usage.startTime ?? usage.endTime ?? "-",
       formatInt(usage.nextNonCachedInputTokens),
+      formatPct(usage.nextNewInputRatio),
       formatInt(usage.nextInputTokens),
       formatInt(usage.nextCachedInputTokens),
       formatInt(usage.nextTotalTokens),
       shorten(toolInputLabel(usage), 100),
     ]);
 
-export const toolUsageTable = (toolUsages: ToolUsage[], limit: number): string =>
+export const toolUsageTable = (
+  toolUsages: ToolUsage[],
+  limit: number,
+  sort: ToolUsageSort = "output-chars",
+): string =>
   table(
     [
       "output_chars",
@@ -261,12 +279,13 @@ export const toolUsageTable = (toolUsages: ToolUsage[], limit: number): string =
       "line",
       "time",
       "next_new_input",
+      "next_new_ratio",
       "next_input",
       "next_cached",
       "next_total",
       "input_preview",
     ],
-    toolUsageRows(toolUsages, limit),
+    toolUsageRows(toolUsages, limit, sort),
   );
 
 export const aggregateToolOutputTable = (
@@ -415,6 +434,7 @@ const toolUsageToJson = (usage: ToolUsage): Record<string, unknown> => ({
   nextInputTokens: usage.nextInputTokens,
   nextCachedInputTokens: usage.nextCachedInputTokens,
   nextNonCachedInputTokens: usage.nextNonCachedInputTokens,
+  nextNewInputRatio: usage.nextNewInputRatio,
   nextOutputTokens: usage.nextOutputTokens,
   nextTotalTokens: usage.nextTotalTokens,
 });

@@ -122,6 +122,28 @@ describe("cli", () => {
     expect(output).toContain('rg -n "tts-check" dist');
     expect(output).toContain("apply_patch");
     expect(output).toContain("next_new_input");
+    expect(output).toContain("next_new_ratio");
+  });
+
+  it("sorts tool usage by output chars or next new input", () => {
+    const byOutput = captureLog(() =>
+      run(["tool-usage", "--sort", "output-chars", fixturePath("tool-usage-session.jsonl")]),
+    );
+    expect(byOutput.code).toBe(0);
+    expect(byOutput.output.indexOf("exec_command")).toBeLessThan(
+      byOutput.output.indexOf("apply_patch"),
+    );
+
+    const byNextNewInput = captureLog(() =>
+      run(["tool-usage", "--sort", "next-new-input", fixturePath("tool-usage-session.jsonl")]),
+    );
+    expect(byNextNewInput.code).toBe(0);
+    expect(byNextNewInput.output.indexOf("function_call_output")).toBeLessThan(
+      byNextNewInput.output.indexOf("apply_patch"),
+    );
+    expect(byNextNewInput.output.indexOf("apply_patch")).toBeLessThan(
+      byNextNewInput.output.indexOf("exec_command"),
+    );
   });
 
   it("emits and limits toolUsages in analyze JSON", () => {
@@ -129,8 +151,11 @@ describe("cli", () => {
       run(["analyze", "--json", fixturePath("tool-usage-session.jsonl")]),
     );
     expect(all.code).toBe(0);
-    const fullSession = JSON.parse(all.output) as { session: { toolUsages: unknown[] } };
+    const fullSession = JSON.parse(all.output) as {
+      session: { toolUsages: Array<{ nextNewInputRatio?: number | null }> };
+    };
     expect(fullSession.session.toolUsages.length).toBeGreaterThan(0);
+    expect(fullSession.session.toolUsages[0]).toHaveProperty("nextNewInputRatio");
 
     const limited = captureLog(() =>
       run(["analyze", "--json", "--limit", "1", fixturePath("tool-usage-session.jsonl")]),

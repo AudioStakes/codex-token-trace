@@ -217,6 +217,7 @@ describe("parseSessionFile", () => {
         nextInputTokens: 180,
         nextCachedInputTokens: 40,
         nextNonCachedInputTokens: 140,
+        nextNewInputRatio: 140 / 180,
         nextOutputTokens: 10,
         nextTotalTokens: 210,
       }),
@@ -267,9 +268,48 @@ describe("parseSessionFile", () => {
         endLine: null,
         nextTokenLine: null,
         nextNonCachedInputTokens: null,
+        nextNewInputRatio: null,
       }),
     );
     expect(toolUsageTable(analysis.toolUsages, 10)).toContain("next_new_input");
+  });
+
+  it("computes tool usage new input ratio as null when next input is missing or zero", () => {
+    const path = writeJsonl([
+      {
+        timestamp: "zero-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "zero",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "zero input" }),
+        },
+      },
+      {
+        timestamp: "zero-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "zero", output: "z" },
+      },
+      token(0, 0, 0, "zero-token"),
+      {
+        timestamp: "missing-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "missing",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "missing token" }),
+        },
+      },
+    ]);
+    const analysis = parseSessionFile(path);
+    expect(
+      analysis.toolUsages.find((tool) => tool.callId === "zero")?.nextNewInputRatio,
+    ).toBeNull();
+    expect(
+      analysis.toolUsages.find((tool) => tool.callId === "missing")?.nextNewInputRatio,
+    ).toBeNull();
   });
 
   it("handles custom view_image tools separately from exec commands", () => {
@@ -410,6 +450,7 @@ describe("parseSessionFile", () => {
           tool: "exec_command",
           outputChars: 100,
           nextNonCachedInputTokens: 900,
+          nextNewInputRatio: 0.9,
         }),
       ]),
     );

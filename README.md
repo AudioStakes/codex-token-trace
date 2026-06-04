@@ -91,7 +91,7 @@ The old `commands` subcommand remains as an alias for `tools`.
 codex-token-trace tool-usage
 ```
 
-Show tool usages with output size and the next token_count observed after each usage.
+Show tool usages with output size and the next token_count observed after each usage. Use `--sort output-chars` (default) or `--sort next-new-input` to change ranking.
 
 ### Show token timeline
 
