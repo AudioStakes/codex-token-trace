@@ -15,6 +15,8 @@ import {
   largeEvents,
   sessionToJson,
   toolOutputTable,
+  toolUsageGroups,
+  toolUsageGroupTable,
   toolUsageTable,
 } from "../src/reports.js";
 
@@ -274,6 +276,83 @@ describe("parseSessionFile", () => {
     expect(toolUsageTable(analysis.toolUsages, 10)).toContain("next_new_input");
   });
 
+  it("groups tool usages by next token_count and ranks by next new input", () => {
+    const path = writeJsonl([
+      {
+        timestamp: "alpha-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "alpha",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "alpha" }),
+        },
+      },
+      {
+        timestamp: "alpha-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "alpha", output: "a".repeat(10) },
+      },
+      {
+        timestamp: "beta-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "beta",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "beta" }),
+        },
+      },
+      {
+        timestamp: "beta-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "beta", output: "b".repeat(20) },
+      },
+      token(1000, 1000, 100, "shared-token"),
+      {
+        timestamp: "gamma-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "gamma",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "gamma" }),
+        },
+      },
+      {
+        timestamp: "gamma-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "gamma", output: "g".repeat(100) },
+      },
+      token(800, 800, 400, "smaller-token"),
+    ]);
+    const groups = toolUsageGroups(parseSessionFile(path).toolUsages);
+
+    expect(groups).toHaveLength(2);
+    expect(groups[0]).toEqual(
+      expect.objectContaining({
+        nextTokenLine: 5,
+        nextNonCachedInputTokens: 900,
+        nextNewInputRatio: 0.9,
+        toolCount: 2,
+        outputChars: 30,
+      }),
+    );
+    expect(groups[0]?.topTools.map((tool) => tool.callId)).toEqual(["beta", "alpha"]);
+    expect(groups[1]).toEqual(
+      expect.objectContaining({
+        nextTokenLine: 8,
+        nextNonCachedInputTokens: 400,
+        toolCount: 1,
+        outputChars: 100,
+      }),
+    );
+    expect(toolUsageGroupTable(parseSessionFile(path).toolUsages, 1)).toContain("shared-token");
+    expect(toolUsageGroupTable(parseSessionFile(path).toolUsages, 1)).not.toContain(
+      "smaller-token",
+    );
+  });
+
   it("computes tool usage new input ratio as null when next input is missing or zero", () => {
     const path = writeJsonl([
       {
@@ -438,6 +517,7 @@ describe("parseSessionFile", () => {
     expect(json).toHaveProperty("drivers");
     expect(json).toHaveProperty("heaviestTools");
     expect(json).toHaveProperty("toolUsages");
+    expect(json).toHaveProperty("toolUsageGroups");
     expect(json).toHaveProperty("intervals");
     expect(json).toHaveProperty("largeEvents");
     expect(json).toHaveProperty("compactions");
@@ -448,6 +528,17 @@ describe("parseSessionFile", () => {
       expect.arrayContaining([
         expect.objectContaining({
           tool: "exec_command",
+          outputChars: 100,
+          nextNonCachedInputTokens: 900,
+          nextNewInputRatio: 0.9,
+        }),
+      ]),
+    );
+    expect(json.toolUsageGroups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          nextTokenLine: 4,
+          toolCount: 1,
           outputChars: 100,
           nextNonCachedInputTokens: 900,
           nextNewInputRatio: 0.9,

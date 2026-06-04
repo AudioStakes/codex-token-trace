@@ -62,6 +62,20 @@ export type ToolUsage = ToolCall &
     nextTotalTokens: number | null;
   }>;
 
+export type ToolUsageGroup = Readonly<{
+  nextTokenLine: number;
+  nextTokenTime: string | null;
+  nextInputTokens: number | null;
+  nextCachedInputTokens: number | null;
+  nextNonCachedInputTokens: number | null;
+  nextNewInputRatio: number | null;
+  nextOutputTokens: number | null;
+  nextTotalTokens: number | null;
+  toolCount: number;
+  outputChars: number;
+  topTools: ToolUsage[];
+}>;
+
 export type Interval = Readonly<{
   previousTokenLine: number | null;
   tokenEvent: TokenEvent;

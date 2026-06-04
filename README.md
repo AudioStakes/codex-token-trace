@@ -93,6 +93,8 @@ codex-token-trace tool-usage
 
 Show tool usages with output size and the next token_count observed after each usage. Use `--sort output-chars` (default) or `--sort next-new-input` to change ranking.
 
+Use `--group-by next-token` to group tool usages by the next unique `token_count` line. This grouped view is heuristic: it shows tools observed before the same token interval together, but does not prove which tool caused the token increase.
+
 ### Show token timeline
 
 ```bash
