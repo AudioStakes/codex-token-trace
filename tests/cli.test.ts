@@ -70,6 +70,54 @@ const writeFixture = (): string => {
   return path;
 };
 
+const toolCallRows = (
+  callId: string,
+  name: string,
+  input: Record<string, unknown> | string,
+  output: string,
+): Array<Record<string, unknown>> => [
+  {
+    timestamp: `${callId}-call`,
+    type: "response_item",
+    payload: {
+      type: "function_call",
+      call_id: callId,
+      name,
+      arguments: typeof input === "string" ? input : JSON.stringify(input),
+    },
+  },
+  {
+    timestamp: `${callId}-output`,
+    type: "response_item",
+    payload: { type: "function_call_output", call_id: callId, output },
+  },
+];
+
+const patchRows = (callId: string): Array<Record<string, unknown>> => [
+  {
+    timestamp: `${callId}-call`,
+    type: "response_item",
+    payload: {
+      type: "custom_tool_call",
+      call_id: callId,
+      input: "*** Begin Patch\n*** End Patch",
+    },
+  },
+  {
+    timestamp: `${callId}-output`,
+    type: "response_item",
+    payload: { type: "custom_tool_call_output", call_id: callId, output: "Done!" },
+  },
+];
+
+const diagnoseOutputForRows = (rows: Array<Record<string, unknown>>, limit = "10"): string => {
+  const dir = mkdtempSync(join(tmpdir(), "ctt-cli-diagnose-signals-"));
+  const path = writeJsonl(dir, "session.jsonl", rows);
+  const { code, output } = captureLog(() => run(["diagnose", "--limit", limit, path]));
+  expect(code).toBe(0);
+  return output;
+};
+
 const captureLog = (fn: () => number): { code: number; output: string } => {
   const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
   try {
@@ -127,6 +175,132 @@ describe("cli", () => {
     expect(output).toContain("after apply_patch");
     expect(output).toContain("after 2 tools");
     expect(output).toContain("Context compaction happened 1 time, max compacted event 955 chars.");
+  });
+
+  it("suggests view_image only when image output is a large observed signal", () => {
+    const imageSuggestion =
+      "Use view_image intentionally; it is output-size heavy even when next_new_input is low.";
+
+    const withImage = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...toolCallRows("image", "view_image", { path: "/tmp/synthetic.png" }, "v".repeat(900)),
+      ...toolCallRows("exec", "exec_command", { cmd: "pwd" }, "x".repeat(100)),
+      tokenRow(200, "after"),
+    ]);
+    expect(withImage).toContain(imageSuggestion);
+
+    const withoutImage = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...toolCallRows("exec", "exec_command", { cmd: "pwd" }, "x".repeat(1000)),
+      tokenRow(200, "after"),
+    ]);
+    expect(withoutImage).not.toContain(imageSuggestion);
+  });
+
+  it("suggests narrowing rg/sed only when those commands are prominent", () => {
+    const rgSedSuggestion = "Narrow broad rg/sed commands before reading large outputs.";
+
+    const withRgSed = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...toolCallRows("rg", "exec_command", { cmd: "rg broad src" }, "r".repeat(800)),
+      ...toolCallRows("sed", "exec_command", { cmd: "sed -n 1,200p src/file.ts" }, "s".repeat(500)),
+      tokenRow(600, "after"),
+    ]);
+    expect(withRgSed).toContain(rgSedSuggestion);
+
+    const withoutRgSed = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...toolCallRows("cat", "exec_command", { cmd: "cat package.json" }, "c".repeat(800)),
+      tokenRow(600, "after"),
+    ]);
+    expect(withoutRgSed).not.toContain(rgSedSuggestion);
+  });
+
+  it("suggests avoiding generated asset reads only when generated paths are observed", () => {
+    const generatedAssetSuggestion = "Avoid repeated reads of generated assets unless necessary.";
+
+    const withGeneratedAsset = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...toolCallRows(
+        "asset",
+        "exec_command",
+        { cmd: "sed -n 1,80p dist/assets/app.js" },
+        "a".repeat(800),
+      ),
+      tokenRow(600, "after"),
+    ]);
+    expect(withGeneratedAsset).toContain(generatedAssetSuggestion);
+
+    const withoutGeneratedAsset = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...toolCallRows(
+        "source",
+        "exec_command",
+        { cmd: "sed -n 1,80p src/app.ts" },
+        "s".repeat(800),
+      ),
+      tokenRow(600, "after"),
+    ]);
+    expect(withoutGeneratedAsset).not.toContain(generatedAssetSuggestion);
+  });
+
+  it("suggests reviewing patch intervals only when multiple apply_patch spikes are observed", () => {
+    const patchSuggestion =
+      "Review large patch intervals; patches can be associated with high non-cached input even when patch output is small.";
+
+    const withMultiplePatchSpikes = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...patchRows("patch-a"),
+      tokenRow(1000, "after-patch-a"),
+      ...patchRows("patch-b"),
+      tokenRow(1800, "after-patch-b"),
+    ]);
+    expect(withMultiplePatchSpikes).toContain(patchSuggestion);
+
+    const withOnePatchSpike = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...patchRows("patch-a"),
+      tokenRow(1000, "after-patch-a"),
+    ]);
+    expect(withOnePatchSpike).not.toContain(patchSuggestion);
+  });
+
+  it("suggests context pressure only when compaction is observed", () => {
+    const compactionSuggestion =
+      "Watch context pressure; compaction indicates the session reached a large context state.";
+
+    const withCompaction = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      { timestamp: "compact", type: "compacted", items: ["c".repeat(100)] },
+      tokenRow(200, "after"),
+    ]);
+    expect(withCompaction).toContain(compactionSuggestion);
+
+    const withoutCompaction = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...toolCallRows("exec", "exec_command", { cmd: "pwd" }, "p".repeat(10)),
+      tokenRow(200, "after"),
+    ]);
+    expect(withoutCompaction).not.toContain(compactionSuggestion);
+  });
+
+  it("uses the fallback suggestion only when no specific diagnosis signals are observed", () => {
+    const fallbackSuggestion =
+      "Inspect the top tool usage groups and large events before optimizing prompts or commands.";
+
+    const withoutSignals = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      ...toolCallRows("exec", "exec_command", { cmd: "pwd" }, "p".repeat(10)),
+      tokenRow(200, "after"),
+    ]);
+    expect(withoutSignals).toContain(fallbackSuggestion);
+
+    const withSignal = diagnoseOutputForRows([
+      tokenRow(100, "start"),
+      { timestamp: "compact", type: "compacted", items: ["c".repeat(100)] },
+      tokenRow(200, "after"),
+    ]);
+    expect(withSignal).not.toContain(fallbackSuggestion);
   });
 
   it("runs tool-usage against a synthetic fixture", () => {
