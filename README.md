@@ -193,13 +193,13 @@ The archived Python code is kept so behavior can be compared during the migratio
 Run these before finishing changes:
 
 ```bash
-npm run format
-npm run lint
-npm run test
-npm run build
+npm run fix
+npm run verify
 ```
 
-`npm run test` runs the Vitest suite. `npm run lint` and `npm run format` use Biome.
+`npm run fix` applies automatic formatting/lint fixes. `npm run verify` runs the read-only verification gate used before completion.
+
+Project-local Codex hooks are configured under `.codex/hooks.json`. The Stop hook runs `npm run fix` followed by `npm run verify` before Codex completes a turn.
 
 ## Privacy
 

@@ -24,23 +24,13 @@ When a prompt mentions `/grill-with-docs`, read and follow `docs/agent-skills/gr
 - Keep parser behavior, report behavior, and CLI behavior separately testable.
 - Prefer small, reviewable changes over broad rewrites.
 
-## Required checks before finishing work
+## Verification
 
-Before reporting that work is complete, run all of the following:
+Run focused automated tests while developing.
 
-```bash
-npm run format
-npm run lint
-npm run test
-```
+Before completing work, the Codex Stop hook runs the repository auto-fix stage. Include any resulting changes in the final diff.
 
-If the change affects TypeScript build output or package structure, also run:
-
-```bash
-npm run build
-```
-
-If any command cannot be run, report that explicitly with the reason.
+The final verification gate is enforced by the Codex Stop hook. A task is not complete unless the hook-managed verification succeeds. Do not bypass the hook, relax checks, or report completion after a failed verification.
 
 ## Formatting and linting
 
