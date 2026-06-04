@@ -13,7 +13,12 @@ const writeJsonl = (rows: Array<Record<string, unknown>>): string => {
   return path;
 };
 
-const token = (total: number, input: number, cached: number, timestamp = "2026-01-01T00:00:00Z") => ({
+const token = (
+  total: number,
+  input: number,
+  cached: number,
+  timestamp = "2026-01-01T00:00:00Z",
+) => ({
   timestamp,
   type: "event_msg",
   payload: {
@@ -138,8 +143,16 @@ describe("parseSessionFile", () => {
 
   it("detects large events using min chars", () => {
     const path = writeJsonl([
-      { timestamp: "t1", type: "event_msg", payload: { type: "user_message", message: "u".repeat(20_000) } },
-      { timestamp: "t2", type: "response_item", payload: { type: "message", content: "m".repeat(5_000) } },
+      {
+        timestamp: "t1",
+        type: "event_msg",
+        payload: { type: "user_message", message: "u".repeat(20_000) },
+      },
+      {
+        timestamp: "t2",
+        type: "response_item",
+        payload: { type: "message", content: "m".repeat(5_000) },
+      },
       token(1000, 1000, 100),
     ]);
     const analysis = parseSessionFile(path);

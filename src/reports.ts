@@ -1,9 +1,12 @@
+import { formatInt, formatPct, shorten, table } from "./formatting.js";
 import {
   cacheHitRate,
   contextRatio,
+  type EventRecord,
   eventTypeKey,
   execCommandOutputChars,
   finalTotal,
+  type Interval,
   intervalExecCommandOutputChars,
   intervalToolOutputChars,
   isExecCommand,
@@ -11,17 +14,14 @@ import {
   maxInputTokens,
   maxNonCachedInputTokens,
   nonCachedInputTokens,
+  type SessionAnalysis,
+  type TokenEvent,
+  type ToolCall,
   toolDisplayName,
   toolInputLabel,
   toolOutputChars,
   topIntervalEventTypes,
-  type EventRecord,
-  type Interval,
-  type SessionAnalysis,
-  type TokenEvent,
-  type ToolCall,
 } from "./models.js";
-import { formatInt, formatPct, shorten, table } from "./formatting.js";
 
 type EventTypeTotal = Readonly<{
   eventType: string;
@@ -75,7 +75,11 @@ const previewEvent = (event: EventRecord, width = 120): string => {
   return shorten(JSON.stringify(event.raw), width);
 };
 
-export const largeEvents = (analysis: SessionAnalysis, minChars: number, limit: number): LargeEvent[] =>
+export const largeEvents = (
+  analysis: SessionAnalysis,
+  minChars: number,
+  limit: number,
+): LargeEvent[] =>
   analysis.events
     .filter((event) => event.rawChars >= minChars)
     .map((event) => ({
@@ -149,7 +153,10 @@ export const sessionSummary = (analysis: SessionAnalysis): string => {
     ],
     ["tool output chars", formatInt(toolOutputChars(analysis))],
     ["exec command output chars", formatInt(execCommandOutputChars(analysis))],
-    ["compacted chars", `${formatInt(compactedChars)} total / ${formatInt(compacted.length)} events`],
+    [
+      "compacted chars",
+      `${formatInt(compactedChars)} total / ${formatInt(compacted.length)} events`,
+    ],
   ];
   return table(["metric", "value"], rows);
 };
@@ -165,7 +172,11 @@ export const driversTable = (analysis: SessionAnalysis): string =>
     ]),
   );
 
-export const largeEventsTable = (analysis: SessionAnalysis, minChars: number, limit: number): string =>
+export const largeEventsTable = (
+  analysis: SessionAnalysis,
+  minChars: number,
+  limit: number,
+): string =>
   table(
     ["line", "time", "raw_chars", "event_type", "preview"],
     largeEvents(analysis, minChars, limit).map((event) => [
@@ -190,7 +201,11 @@ export const compactionTable = (analysis: SessionAnalysis, limit: number): strin
     ]),
   );
 
-const toolRows = (tools: ToolCall[], limit: number, onlyExec: boolean): Array<Array<string | number>> =>
+const toolRows = (
+  tools: ToolCall[],
+  limit: number,
+  onlyExec: boolean,
+): Array<Array<string | number>> =>
   tools
     .filter((tool) => tool.outputChars > 0)
     .filter((tool) => !onlyExec || isExecCommand(tool))
@@ -211,7 +226,10 @@ export const aggregateToolOutputTable = (
   limit: number,
   onlyExec = false,
 ): string => {
-  const byKey = new Map<string, { outputChars: number; calls: number; tool: string; input: string }>();
+  const byKey = new Map<
+    string,
+    { outputChars: number; calls: number; tool: string; input: string }
+  >();
   for (const analysis of analyses) {
     for (const tool of analysis.tools) {
       if (tool.outputChars <= 0 || (onlyExec && !isExecCommand(tool))) {
@@ -239,9 +257,21 @@ export const aggregateToolOutputTable = (
 };
 
 export const timelineTable = (analysis: SessionAnalysis, limit: number | null): string => {
-  const events = limit === null ? analysis.uniqueTokenEvents : analysis.uniqueTokenEvents.slice(0, limit);
+  const events =
+    limit === null ? analysis.uniqueTokenEvents : analysis.uniqueTokenEvents.slice(0, limit);
   return table(
-    ["line", "time", "input", "cached", "new_input", "output", "reasoning", "total", "ctx", "cache"],
+    [
+      "line",
+      "time",
+      "input",
+      "cached",
+      "new_input",
+      "output",
+      "reasoning",
+      "total",
+      "ctx",
+      "cache",
+    ],
     events.map((event) => [
       event.lineNo,
       event.timestamp ?? "-",
@@ -266,7 +296,9 @@ const topEventTypesText = (interval: Interval, limit: number, width: number): st
 
 export const intervalTable = (analysis: SessionAnalysis, limit: number): string => {
   const intervals = [...analysis.intervals]
-    .sort((a, b) => nonCachedInputTokens(b.tokenEvent.last) - nonCachedInputTokens(a.tokenEvent.last))
+    .sort(
+      (a, b) => nonCachedInputTokens(b.tokenEvent.last) - nonCachedInputTokens(a.tokenEvent.last),
+    )
     .slice(0, limit);
   return table(
     [
@@ -358,7 +390,9 @@ export const sessionToJson = (analysis: SessionAnalysis): Record<string, unknown
       timestamp: tool.timestamp,
     })),
   intervals: [...analysis.intervals]
-    .sort((a, b) => nonCachedInputTokens(b.tokenEvent.last) - nonCachedInputTokens(a.tokenEvent.last))
+    .sort(
+      (a, b) => nonCachedInputTokens(b.tokenEvent.last) - nonCachedInputTokens(a.tokenEvent.last),
+    )
     .slice(0, 50)
     .map((interval) => ({
       line: interval.tokenEvent.lineNo,

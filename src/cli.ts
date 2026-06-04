@@ -2,6 +2,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { finalTotal, type SessionAnalysis } from "./models.js";
 import { discoverFiles, parseSessionFile } from "./parser.js";
 import {
   aggregateToolOutputTable,
@@ -15,7 +16,6 @@ import {
   timelineTable,
   toolOutputTable,
 } from "./reports.js";
-import { finalTotal, type SessionAnalysis } from "./models.js";
 
 type ParsedArgs = Readonly<{
   command: string;
@@ -109,7 +109,9 @@ const loadAnalyses = (paths: string[]): SessionAnalysis[] => {
   if (files.length === 0) {
     throw new Error("No .jsonl files found. Pass a session file, directory, or glob pattern.");
   }
-  const analyses = files.map((file) => parseSessionFile(file)).filter((analysis) => analysis.events.length > 0);
+  const analyses = files
+    .map((file) => parseSessionFile(file))
+    .filter((analysis) => analysis.events.length > 0);
   if (analyses.length === 0) {
     throw new Error("No readable Codex session events found.");
   }
@@ -126,7 +128,9 @@ const pickSession = (analyses: SessionAnalysis[], session: string | null): Sessi
     }
     return match;
   }
-  const sorted = [...analyses].sort((a, b) => finalTotal(b).totalTokens - finalTotal(a).totalTokens);
+  const sorted = [...analyses].sort(
+    (a, b) => finalTotal(b).totalTokens - finalTotal(a).totalTokens,
+  );
   const selected = sorted[0];
   if (selected === undefined) {
     throw new Error("No session found.");
@@ -205,7 +209,8 @@ export const run = (argv: string[]): number => {
   return 0;
 };
 
-const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMain) {
   try {
