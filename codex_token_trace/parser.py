@@ -40,25 +40,49 @@ def _json_len(value: Any) -> int:
     return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
 
 
-def _decode_command(arguments: Any) -> tuple[str, int]:
+def _preview(value: Any, width: int = 160) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        text = value
+    else:
+        text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    text = text.replace("\n", "\\n")
+    return text[:width]
+
+
+def _decode_tool_input(arguments: Any, payload: dict[str, Any]) -> tuple[str, int, str, int]:
     if arguments is None:
-        return "", 0
+        # custom tools often put their user-visible input somewhere other than arguments.
+        for key in ("input", "path", "query", "content"):
+            if key in payload:
+                value = payload.get(key)
+                chars = _json_len(value)
+                text = str(value) if isinstance(value, str) else _preview(value)
+                return "", 0, text, chars
+        return "", 0, "", 0
+
+    arg_chars = _json_len(arguments)
+    input_preview = _preview(arguments)
     if isinstance(arguments, str):
-        arg_chars = len(arguments)
         try:
             decoded = json.loads(arguments)
         except json.JSONDecodeError:
-            return arguments, arg_chars
+            return arguments, arg_chars, input_preview, arg_chars
     else:
         decoded = arguments
-        arg_chars = _json_len(arguments)
 
     if isinstance(decoded, dict):
-        cmd = decoded.get("cmd") or decoded.get("command") or decoded.get("input") or decoded.get("path") or ""
-        if isinstance(cmd, list):
-            return shlex.join(str(part) for part in cmd), arg_chars
-        return str(cmd), arg_chars
-    return str(decoded), arg_chars
+        cmd = decoded.get("cmd") or decoded.get("command")
+        if cmd is not None:
+            if isinstance(cmd, list):
+                return shlex.join(str(part) for part in cmd), arg_chars, input_preview, arg_chars
+            return str(cmd), arg_chars, input_preview, arg_chars
+        for key in ("input", "path", "query", "content"):
+            if key in decoded:
+                value = decoded.get(key)
+                return "", arg_chars, _preview(value), _json_len(value)
+    return "", arg_chars, input_preview, arg_chars
 
 
 def _call_id(payload: dict[str, Any]) -> str | None:
@@ -119,7 +143,9 @@ def parse_session_file(path: Path) -> SessionAnalysis:
             if ptype in CALL_TYPES:
                 call_id = _call_id(payload)
                 if call_id:
-                    command, arg_chars = _decode_command(payload.get("arguments") or payload.get("input"))
+                    command, arg_chars, input_preview, input_chars = _decode_tool_input(
+                        payload.get("arguments"), payload
+                    )
                     tool_by_id[call_id] = ToolCall(
                         call_id=call_id,
                         timestamp=obj.get("timestamp"),
@@ -127,6 +153,8 @@ def parse_session_file(path: Path) -> SessionAnalysis:
                         command=command,
                         arguments_chars=arg_chars,
                         call_type=ptype or "tool_call",
+                        input_preview=input_preview,
+                        input_chars=input_chars,
                     )
             elif ptype in OUTPUT_TYPES:
                 call_id = _call_id(payload)

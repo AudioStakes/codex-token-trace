@@ -5,7 +5,19 @@ from collections import defaultdict
 from typing import Any
 
 from .formatting import fmt_int, fmt_pct, shorten, table
-from .models import Interval, SessionAnalysis, ToolCall
+from .models import Event, Interval, SessionAnalysis, TokenEvent, ToolCall
+
+
+DEFAULT_LARGE_EVENT_TYPES = {
+    "response_item/message",
+    "event_msg/user_message",
+    "compacted/no_payload_type",
+    "event_msg/patch_apply_end",
+    "response_item/custom_tool_call",
+    "response_item/custom_tool_call_output",
+    "response_item/function_call_output",
+    "response_item/reasoning",
+}
 
 
 def _event_type_totals(analysis: SessionAnalysis) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
@@ -25,6 +37,18 @@ def _top_interval_event_types(interval: Interval, limit: int = 3, width: int = 8
     for key, chars, count in interval.top_event_types(limit=limit):
         parts.append(f"{key}:{fmt_int(chars)}({count})")
     return shorten(", ".join(parts), width)
+
+
+def _token_before_after(analysis: SessionAnalysis, line_no: int) -> tuple[TokenEvent | None, TokenEvent | None]:
+    before = None
+    after = None
+    for token in analysis.unique_token_events:
+        if token.line_no < line_no:
+            before = token
+        elif token.line_no > line_no:
+            after = token
+            break
+    return before, after
 
 
 def session_summary(analysis: SessionAnalysis) -> str:
@@ -78,15 +102,15 @@ def tool_output_table(tools: list[ToolCall], limit: int = 30, *, only_exec: bool
     rows = []
     filtered = [tool for tool in tools if tool.output_chars > 0]
     if only_exec:
-        filtered = [tool for tool in filtered if tool.name == "exec_command"]
+        filtered = [tool for tool in filtered if tool.is_exec_command]
     for c in sorted(filtered, key=lambda c: c.output_chars, reverse=True)[:limit]:
         rows.append((
             fmt_int(c.output_chars),
             c.output_events,
             c.display_name,
-            shorten(c.display_command, 100),
+            shorten(c.display_input, 100),
         ))
-    return table(("output_chars", "events", "tool", "command_or_input"), rows)
+    return table(("output_chars", "events", "tool", "input_preview"), rows)
 
 
 def aggregate_tool_output_table(analyses: list[SessionAnalysis], limit: int = 30, *, only_exec: bool = False) -> str:
@@ -95,16 +119,16 @@ def aggregate_tool_output_table(analyses: list[SessionAnalysis], limit: int = 30
         for c in analysis.tools:
             if c.output_chars <= 0:
                 continue
-            if only_exec and c.name != "exec_command":
+            if only_exec and not c.is_exec_command:
                 continue
-            key = (c.display_name, c.display_command)
+            key = (c.display_name, c.display_input)
             by_key[key]["output"] += c.output_chars
             by_key[key]["count"] += 1
 
     rows = []
-    for (tool, command), values in sorted(by_key.items(), key=lambda kv: kv[1]["output"], reverse=True)[:limit]:
-        rows.append((fmt_int(values["output"]), values["count"], tool, shorten(command, 100)))
-    return table(("output_chars", "calls", "tool", "command_or_input"), rows)
+    for (tool, preview), values in sorted(by_key.items(), key=lambda kv: kv[1]["output"], reverse=True)[:limit]:
+        rows.append((fmt_int(values["output"]), values["count"], tool, shorten(preview, 100)))
+    return table(("output_chars", "calls", "tool", "input_preview"), rows)
 
 
 def timeline_table(analysis: SessionAnalysis, limit: int | None = None) -> str:
@@ -151,7 +175,8 @@ def interval_table(analysis: SessionAnalysis, limit: int = 30) -> str:
             fmt_int(interval.exec_command_output_chars),
             fmt_int(interval.event_count),
             _top_interval_event_types(interval, limit=3, width=88),
-            shorten(top_tool.display_command if top_tool else "", 80),
+            top_tool.display_name if top_tool else "",
+            shorten(top_tool.display_input if top_tool else "", 72),
         ))
     return table(
         (
@@ -164,7 +189,8 @@ def interval_table(analysis: SessionAnalysis, limit: int = 30) -> str:
             "prev_exec_out",
             "prev_events",
             "top_prev_event_types",
-            "top_prev_tool_or_command",
+            "top_prev_tool",
+            "top_prev_input_preview",
         ),
         rows,
     )
@@ -184,6 +210,49 @@ def compaction_table(analysis: SessionAnalysis, limit: int = 20) -> str:
     for event in sorted(events, key=lambda e: e.raw_chars, reverse=True)[:limit]:
         rows.append((event.line_no, event.timestamp or "-", fmt_int(event.raw_chars), event.type_key))
     return table(("line", "time", "raw_chars", "event_type"), rows)
+
+
+def compaction_impact_table(analysis: SessionAnalysis, limit: int = 20) -> str:
+    rows = []
+    events = [event for event in analysis.events if event.top_type == "compacted" or event.payload_type == "context_compacted"]
+    for event in sorted(events, key=lambda e: e.line_no)[:limit]:
+        before, after = _token_before_after(analysis, event.line_no)
+        rows.append((
+            event.line_no,
+            event.timestamp or "-",
+            fmt_int(event.raw_chars),
+            event.type_key,
+            before.line_no if before else "-",
+            fmt_int(before.last.input_tokens if before else None),
+            fmt_int(before.last.non_cached_input_tokens if before else None),
+            after.line_no if after else "-",
+            fmt_int(after.last.input_tokens if after else None),
+            fmt_int(after.last.non_cached_input_tokens if after else None),
+        ))
+    return table(
+        ("line", "time", "raw_chars", "event_type", "prev_token", "prev_input", "prev_new", "next_token", "next_input", "next_new"),
+        rows,
+    )
+
+
+def large_events_table(analysis: SessionAnalysis, limit: int = 30, min_chars: int = 10_000) -> str:
+    rows = []
+    candidates = [
+        event
+        for event in analysis.events
+        if event.raw_chars >= min_chars or event.type_key in DEFAULT_LARGE_EVENT_TYPES
+    ]
+    for event in sorted(candidates, key=lambda e: e.raw_chars, reverse=True)[:limit]:
+        before, after = _token_before_after(analysis, event.line_no)
+        rows.append((
+            event.line_no,
+            event.timestamp or "-",
+            fmt_int(event.raw_chars),
+            event.type_key,
+            before.line_no if before else "-",
+            after.line_no if after else "-",
+        ))
+    return table(("line", "time", "raw_chars", "event_type", "prev_token", "next_token"), rows)
 
 
 def session_to_dict(analysis: SessionAnalysis) -> dict[str, Any]:
@@ -209,10 +278,19 @@ def session_to_dict(analysis: SessionAnalysis) -> dict[str, Any]:
             {"event_type": key, "raw_chars": totals[key], "events": counts[key], "max_chars": maxes[key]}
             for key in sorted(totals, key=lambda k: totals[k], reverse=True)
         ],
+        "large_events": [
+            {"line": event.line_no, "timestamp": event.timestamp, "raw_chars": event.raw_chars, "event_type": event.type_key}
+            for event in sorted(analysis.events, key=lambda e: e.raw_chars, reverse=True)[:100]
+        ],
+        "compactions": [
+            {"line": event.line_no, "timestamp": event.timestamp, "raw_chars": event.raw_chars, "event_type": event.type_key}
+            for event in analysis.events
+            if event.top_type == "compacted" or event.payload_type == "context_compacted"
+        ],
         "heaviest_tools": [
             {
                 "tool": tool.display_name,
-                "command_or_input": tool.display_command,
+                "input_preview": tool.display_input,
                 "output_chars": tool.output_chars,
                 "output_events": tool.output_events,
                 "timestamp": tool.timestamp,
@@ -233,7 +311,8 @@ def session_to_dict(analysis: SessionAnalysis) -> dict[str, Any]:
                     {"event_type": key, "raw_chars": chars, "events": count}
                     for key, chars, count in interval.top_event_types(limit=5)
                 ],
-                "top_tool": interval.tools[0].display_command if interval.tools else None,
+                "top_tool": interval.tools[0].display_name if interval.tools else None,
+                "top_tool_input_preview": interval.tools[0].display_input if interval.tools else None,
             }
             for interval in sorted(analysis.intervals, key=lambda i: i.token_event.last.non_cached_input_tokens, reverse=True)[:50]
         ],

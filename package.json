@@ -1,0 +1,36 @@
+{
+  "name": "codex-token-trace",
+  "version": "0.3.0",
+  "description": "Trace what drives Codex token usage from local session logs.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "codex-token-trace": "./dist/cli.js",
+    "ctt": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "check": "npm run build && npm run test && npm run lint"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -7,9 +7,11 @@ from .parser import discover_files, parse_session_file
 from .reports import (
     aggregate_tool_output_table,
     analyses_to_json,
+    compaction_impact_table,
     compaction_table,
     drivers_table,
     interval_table,
+    large_events_table,
     session_summary,
     sessions_table,
     timeline_table,
@@ -57,8 +59,14 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     print("# Likely token drivers by raw JSON size")
     print(drivers_table(analysis))
     print()
+    print(f"# Large events (top {args.limit}, min {args.min_chars} chars)")
+    print(large_events_table(analysis, limit=args.limit, min_chars=args.min_chars))
+    print()
     print(f"# Compaction events (top {args.limit})")
     print(compaction_table(analysis, limit=args.limit))
+    print()
+    print(f"# Compaction impact (top {args.limit})")
+    print(compaction_impact_table(analysis, limit=args.limit))
     print()
     print(f"# Heaviest tool outputs (top {args.limit})")
     print(tool_output_table(analysis.tools, limit=args.limit))
@@ -108,6 +116,16 @@ def cmd_compactions(args: argparse.Namespace) -> int:
     analyses = _load(args.paths)
     analysis = _pick_session(analyses, args.session)
     print(compaction_table(analysis, limit=args.limit))
+    print()
+    print("# Compaction impact")
+    print(compaction_impact_table(analysis, limit=args.limit))
+    return 0
+
+
+def cmd_large_events(args: argparse.Namespace) -> int:
+    analyses = _load(args.paths)
+    analysis = _pick_session(analyses, args.session)
+    print(large_events_table(analysis, limit=args.limit, min_chars=args.min_chars))
     return 0
 
 
@@ -116,7 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="codex-token-trace",
         description="Trace what drives Codex token usage from local session JSONL logs.",
     )
-    parser.add_argument("--version", action="version", version="codex-token-trace 0.2.0")
+    parser.add_argument("--version", action="version", version="codex-token-trace 0.3.0")
     sub = parser.add_subparsers(dest="command")
 
     def add_common(p: argparse.ArgumentParser) -> None:
@@ -128,8 +146,9 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--session", help="Substring of session id/path to analyze. Defaults to the highest-token session.")
         p.add_argument("--limit", type=int, default=30, help="Number of rows to show.")
 
-    p = sub.add_parser("analyze", help="Show summary, drivers, compactions, heavy tool outputs, and input spikes.")
+    p = sub.add_parser("analyze", help="Show summary, drivers, large events, compactions, heavy tools, and input spikes.")
     add_common(p)
+    p.add_argument("--min-chars", type=int, default=10_000, help="Minimum raw JSON chars for large event reporting.")
     p.add_argument("--json", action="store_true", help="Print machine-readable JSON instead of tables.")
     p.set_defaults(func=cmd_analyze)
 
@@ -152,9 +171,14 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(p)
     p.set_defaults(func=cmd_intervals)
 
-    p = sub.add_parser("compactions", help="Show context compaction events for a session.")
+    p = sub.add_parser("compactions", help="Show context compaction events and before/after token usage.")
     add_common(p)
     p.set_defaults(func=cmd_compactions)
+
+    p = sub.add_parser("large-events", help="Show large raw events such as messages, compactions, patches, and tool outputs.")
+    add_common(p)
+    p.add_argument("--min-chars", type=int, default=10_000, help="Minimum raw JSON chars to include.")
+    p.set_defaults(func=cmd_large_events)
 
     return parser
 

@@ -1,0 +1,43 @@
+# Node / TypeScript
+node_modules/
+dist/
+build/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Package managers
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python legacy
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local outputs / reports
+*.log
+*.sqlite
+*.sqlite3
+*.db
+report.json
+reports/
+
+# Local Codex/session data - never commit real logs
+.codex/
+sessions/
+*.jsonl
+!tests/fixtures/*.jsonl

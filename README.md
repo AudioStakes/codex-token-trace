@@ -18,8 +18,8 @@ It does not call OpenAI APIs, proxy traffic, or modify Codex behavior. It is a l
 - Context window usage from `model_context_window`
 - Heavy tool outputs by joining tool calls and outputs via `call_id`
 - Separate rankings for all tool outputs and `exec_command` outputs
-- Likely token drivers by event type and raw JSON size
-- Context compaction events such as `compacted` / `context_compacted`
+- Large raw events such as huge messages, user messages, compactions, patches, and tool outputs
+- Context compaction events and before/after token usage
 - Intervals where non-cached input spiked, including the largest event types inside each interval
 - Optional JSON output for dashboards or further processing
 
@@ -63,6 +63,12 @@ codex-token-trace analyze ~/.codex/sessions/2026/03/31/rollout-xxx.jsonl
 codex-token-trace analyze --session 019d43d2
 ```
 
+### Adjust large event threshold
+
+```bash
+codex-token-trace analyze --min-chars 50000
+```
+
 ### Emit JSON
 
 ```bash
@@ -101,10 +107,16 @@ codex-token-trace timeline ~/.codex/sessions/2026/03/31/rollout-xxx.jsonl
 codex-token-trace intervals ~/.codex/sessions/2026/03/31/rollout-xxx.jsonl
 ```
 
-### Show compaction events
+### Show compaction events and impact
 
 ```bash
 codex-token-trace compactions ~/.codex/sessions/2026/03/31/rollout-xxx.jsonl
+```
+
+### Show large events only
+
+```bash
+codex-token-trace large-events --min-chars 10000 ~/.codex/sessions/2026/03/31/rollout-xxx.jsonl
 ```
 
 ## Key concepts
@@ -133,13 +145,13 @@ Calculated from tool output payload lengths, such as `function_call_output.paylo
 
 ### interval attribution
 
-For each `token_count`, the tool looks at events between the previous unique `token_count` and the current one. This makes command output, image/tool output, user messages, assistant messages, reasoning, and compaction visible as candidate drivers for the next token usage event.
+For each `token_count`, the tool looks at events between the previous unique `token_count` and the current one. This makes command output, image/tool output, user messages, assistant messages, reasoning, patches, and compaction visible as candidate drivers for the next token usage event.
 
 ## Privacy
 
 This tool parses local Codex JSONL files. Those files may contain prompts, code snippets, command outputs, images/tool payload metadata, and other sensitive data.
 
-The default reports print command strings and sizes, but do not print command output bodies. Be careful before sharing raw session files or verbose reports.
+The default reports print command strings and input previews, but do not print command output bodies. Be careful before sharing raw session files or verbose reports.
 
 ## Current limitations
 

@@ -60,6 +60,8 @@ class ToolCall:
     command: str
     arguments_chars: int
     call_type: str = "function_call"
+    input_preview: str = ""
+    input_chars: int = 0
     output_chars: int = 0
     output_events: int = 0
 
@@ -68,8 +70,12 @@ class ToolCall:
         return self.name or self.call_type or "tool"
 
     @property
-    def display_command(self) -> str:
-        return self.command or "-"
+    def display_input(self) -> str:
+        return self.command or self.input_preview or "-"
+
+    @property
+    def is_exec_command(self) -> bool:
+        return self.name == "exec_command"
 
 
 @dataclass
@@ -87,7 +93,7 @@ class Interval:
 
     @property
     def exec_command_output_chars(self) -> int:
-        return sum(tool.output_chars for tool in self.tools if tool.name == "exec_command")
+        return sum(tool.output_chars for tool in self.tools if tool.is_exec_command)
 
     def top_event_types(self, limit: int = 3) -> list[tuple[str, int, int]]:
         rows = [
@@ -138,4 +144,4 @@ class SessionAnalysis:
 
     @property
     def exec_command_output_chars(self) -> int:
-        return sum(tool.output_chars for tool in self.tools if tool.name == "exec_command")
+        return sum(tool.output_chars for tool in self.tools if tool.is_exec_command)
