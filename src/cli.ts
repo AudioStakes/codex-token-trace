@@ -2,6 +2,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { finalTotal, type SessionAnalysis } from "./models.js";
 import { discoverFiles, parseSessionFile } from "./parser.js";
 import {
   aggregateToolOutputTable,
@@ -15,7 +16,6 @@ import {
   timelineTable,
   toolOutputTable,
 } from "./reports.js";
-import { finalTotal, type SessionAnalysis } from "./models.js";
 
 type ParsedArgs = Readonly<{
   command: string;
@@ -109,7 +109,9 @@ const loadAnalyses = (paths: string[]): SessionAnalysis[] => {
   if (files.length === 0) {
     throw new Error("No .jsonl files found. Pass a session file, directory, or glob pattern.");
   }
-  const analyses = files.map((file) => parseSessionFile(file)).filter((analysis) => analysis.events.length > 0);
+  const analyses = files
+    .map((file) => parseSessionFile(file))
+    .filter((analysis) => analysis.events.length > 0);
   if (analyses.length === 0) {
     throw new Error("No readable Codex session events found.");
   }
@@ -126,7 +128,9 @@ const pickSession = (analyses: SessionAnalysis[], session: string | null): Sessi
     }
     return match;
   }
-  const sorted = [...analyses].sort((a, b) => finalTotal(b).totalTokens - finalTotal(a).totalTokens);
+  const sorted = [...analyses].sort(
+    (a, b) => finalTotal(b).totalTokens - finalTotal(a).totalTokens,
+  );
   const selected = sorted[0];
   if (selected === undefined) {
     throw new Error("No session found.");
@@ -171,7 +175,12 @@ export const run = (argv: string[]): number => {
   const analyses = loadAnalyses(args.paths);
   if (args.command === "sessions") {
     if (args.json) {
-      console.log(analysesToJson(analyses));
+      console.log(
+        analysesToJson(analyses, undefined, {
+          limit: args.limit,
+          largeEventMinChars: args.minChars,
+        }),
+      );
     } else {
       console.log(sessionsTable(analyses, args.limit));
     }
@@ -181,12 +190,17 @@ export const run = (argv: string[]): number => {
   const analysis = pickSession(analyses, args.session);
   if (args.command === "analyze") {
     if (args.json) {
-      console.log(analysesToJson(analyses, analysis));
+      console.log(
+        analysesToJson(analyses, analysis, {
+          limit: args.limit,
+          largeEventMinChars: args.minChars,
+        }),
+      );
     } else {
       printAnalyze(analysis, args);
     }
   } else if (args.command === "tools" || args.command === "commands") {
-    if (args.session === null && args.paths.length !== 1) {
+    if (args.session === null) {
       console.log(aggregateToolOutputTable(analyses, args.limit, args.execOnly));
     } else {
       console.log(toolOutputTable(analysis.tools, args.limit, args.execOnly));
@@ -205,7 +219,8 @@ export const run = (argv: string[]): number => {
   return 0;
 };
 
-const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMain =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMain) {
   try {

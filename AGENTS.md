@@ -18,7 +18,7 @@ When a prompt mentions `/grill-with-docs`, read and follow `docs/agent-skills/gr
 
 ## Default workflow
 
-- Use the repository-local `/tdd` skill for implementation work.
+- Use the repository-local TDD workflow in `docs/agent-skills/tdd.md` for implementation work.
 - Start by adding or updating tests that describe the intended behavior.
 - Implement the smallest change that makes the tests pass.
 - Keep parser behavior, report behavior, and CLI behavior separately testable.
@@ -59,7 +59,7 @@ If any command cannot be run, report that explicitly with the reason.
 
 ## Documentation of design decisions
 
-When a new design decision is made, or when an implicit design decision becomes visible during work, consider whether it should be recorded as an ADR.
+When a new design decision is made, or when an implicit design decision becomes visible during work, use `docs/agent-skills/grill-with-docs.md` to consider whether it should be recorded as an ADR.
 
 ADRs follow `docs/agent-skills/grill-with-docs.md` and the ADR format from `mattpocock/skills`:
 
@@ -87,7 +87,7 @@ Do not create ADRs for obvious, easily reversible, or purely mechanical choices.
 
 ## Documentation of domain language
 
-When a new domain term is introduced, or when an implicit domain term becomes visible during work, consider whether it should be recorded in project context documentation.
+When a new domain term is introduced, or when an implicit domain term becomes visible during work, use `docs/agent-skills/grill-with-docs.md` to consider whether it should be recorded in project context documentation.
 
 Domain context follows `docs/agent-skills/grill-with-docs.md` and the CONTEXT format from `mattpocock/skills`:
 

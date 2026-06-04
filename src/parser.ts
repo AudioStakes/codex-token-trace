@@ -1,6 +1,15 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, extname, join, resolve } from "node:path";
-import type { EventRecord, Interval, JsonObject, JsonValue, SessionAnalysis, TokenEvent, ToolCall, Usage } from "./models.js";
+import type {
+  EventRecord,
+  Interval,
+  JsonObject,
+  JsonValue,
+  SessionAnalysis,
+  TokenEvent,
+  ToolCall,
+  Usage,
+} from "./models.js";
 import { emptyUsage, eventTypeKey } from "./models.js";
 
 const CALL_TYPES = new Set(["function_call", "custom_tool_call", "web_search_call"]);
@@ -72,7 +81,9 @@ const parseJsonObject = (text: string): JsonObject | null => {
   }
 };
 
-const decodeInput = (value: JsonValue | undefined): { label: string; chars: number; preview: string } => {
+const decodeInput = (
+  value: JsonValue | undefined,
+): { label: string; chars: number; preview: string } => {
   if (value === undefined || value === null) {
     return { label: "", chars: 0, preview: "" };
   }
@@ -89,7 +100,12 @@ const decodeInput = (value: JsonValue | undefined): { label: string; chars: numb
   }
   if (isObject(decoded)) {
     const candidate =
-      decoded.cmd ?? decoded.command ?? decoded.input ?? decoded.path ?? decoded.filepath ?? decoded.url;
+      decoded.cmd ??
+      decoded.command ??
+      decoded.input ??
+      decoded.path ??
+      decoded.filepath ??
+      decoded.url;
     if (Array.isArray(candidate)) {
       const label = candidate.map((item) => String(item)).join(" ");
       return { label, chars, preview: label };
@@ -218,14 +234,17 @@ export const parseSessionFile = (path: string): SessionAnalysis => {
           ...event,
           last: usageFrom(info.last_token_usage),
           total,
-          contextWindow: typeof info.model_context_window === "number" ? info.model_context_window : null,
+          contextWindow:
+            typeof info.model_context_window === "number" ? info.model_context_window : null,
           duplicateTotal,
         });
       }
     }
   }
 
-  const tools = [...toolById.values()].map(toToolCall).sort((a, b) => b.outputChars - a.outputChars);
+  const tools = [...toolById.values()]
+    .map(toToolCall)
+    .sort((a, b) => b.outputChars - a.outputChars);
   const uniqueTokenEvents = tokenEvents.filter((event) => !event.duplicateTotal);
 
   return {
