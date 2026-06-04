@@ -403,6 +403,9 @@ const pressureSeries = (analysis: SessionAnalysis): PressurePoint[] => {
   });
 };
 
+const topLevelCompactionCount = (analysis: SessionAnalysis): number =>
+  analysis.events.filter((event) => event.topType === "compacted").length;
+
 const markers = (analysis: SessionAnalysis): Marker[] => {
   const compactions = compactionImpacts(analysis, Number.MAX_SAFE_INTEGER).map((event) => ({
     line: event.line,
@@ -459,7 +462,7 @@ export const sessionView = (analysis: SessionAnalysis): SessionView => {
       maxNonCachedInputTokens:
         analysis.uniqueTokenEvents.length > 0 ? maxNonCachedInputTokens(analysis) : null,
       maxContextUsageRatio: maxContextRatio(analysis),
-      compactionCount: compactionImpacts(analysis, Number.MAX_SAFE_INTEGER).length,
+      compactionCount: topLevelCompactionCount(analysis),
       toolOutputChars: toolOutputChars(analysis),
       execCommandOutputChars: execCommandOutputChars(analysis),
     },

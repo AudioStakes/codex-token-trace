@@ -87,11 +87,22 @@ export const serverHtml = (): string => `<!doctype html>
       ].join('');
       drawGraph(data.pressureSeries, data.markers);
     }
-    function drawLine(ctx, points, width, height, color, key) {
+    function parsedTimestamp(value) {
+      if (value === null || value === undefined) return null;
+      const time = Date.parse(value);
+      return Number.isFinite(time) ? time : null;
+    }
+    function timestampRange(points, markers) {
+      const times = points.concat(markers).map((item) => parsedTimestamp(item.timestamp)).filter((value) => value !== null);
+      if (times.length === 0) return null;
+      const min = Math.min(...times); const max = Math.max(...times);
+      return min === max ? null : { min, max };
+    }
+    function drawLine(ctx, points, width, height, color, key, pointX) {
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); let started = false;
       points.forEach((point, index) => {
         const value = point[key]; if (value === null || value === undefined) return;
-        const x = points.length < 2 ? width / 2 : (index / (points.length - 1)) * width;
+        const x = pointX(point, index);
         const y = height - (Math.max(0, Math.min(100, value)) / 100) * height;
         if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
       });
@@ -102,12 +113,25 @@ export const serverHtml = (): string => `<!doctype html>
       const width = canvas.width; const height = canvas.height; ctx.clearRect(0, 0, width, height);
       ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
       for (let i = 0; i <= 4; i++) { const y = (i / 4) * height; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-      drawLine(ctx, points, width, height, '#60a5fa', 'totalProgress');
-      drawLine(ctx, points, width, height, '#f59e0b', 'contextPressure');
-      drawLine(ctx, points, width, height, '#34d399', 'nonCachedPressure');
-      const maxLine = Math.max(1, ...points.map((point) => point.line));
+      const times = timestampRange(points, markers);
+      const minLine = Math.min(1, ...points.map((point) => point.line), ...markers.map((marker) => marker.line));
+      const maxLine = Math.max(minLine + 1, ...points.map((point) => point.line), ...markers.map((marker) => marker.line));
+      const lineX = (line) => Math.max(0, Math.min(width, ((line - minLine) / (maxLine - minLine)) * width));
+      const timeX = (time) => times === null ? null : Math.max(0, Math.min(width, ((time - times.min) / (times.max - times.min)) * width));
+      const pointX = (point, index) => {
+        const time = parsedTimestamp(point.timestamp);
+        const x = time === null ? null : timeX(time);
+        return x === null ? lineX(point.line) : x;
+      };
+      const markerX = (marker) => {
+        const time = parsedTimestamp(marker.timestamp);
+        const x = time === null ? null : timeX(time);
+        return x === null ? lineX(marker.line) : x;
+      };
+      drawLine(ctx, points, width, height, '#60a5fa', 'totalProgress', pointX);
+      drawLine(ctx, points, width, height, '#f59e0b', 'contextPressure', pointX);
+      drawLine(ctx, points, width, height, '#34d399', 'nonCachedPressure', pointX);
       const maxNonCachedInput = Math.max(0, ...points.map((point) => point.nonCachedInputTokens));
-      const markerX = (marker) => Math.max(0, Math.min(width, (marker.line / maxLine) * width));
       const pressureY = (value) => height - (Math.max(0, Math.min(100, value)) / 100) * height;
       markers.forEach((marker) => {
         const x = markerX(marker);

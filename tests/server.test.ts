@@ -90,6 +90,11 @@ const fixtureRows = (): Array<Record<string, unknown>> => [
     },
   },
   { timestamp: "2026-05-25T00:00:08Z", type: "compacted", items: ["synthetic"] },
+  {
+    timestamp: "2026-05-25T00:00:08.500Z",
+    type: "event_msg",
+    payload: { type: "context_compacted" },
+  },
   tokenCount("2026-05-25T00:00:09Z", 250, 50, 40, 4, 294, 1000),
 ];
 
@@ -134,6 +139,17 @@ describe("serve command and server app", () => {
     expect(html).toContain("marker.kind === 'large_event'");
   });
 
+  it("renders the pressure graph with timestamp-based x coordinates and line fallback", async () => {
+    const response = await fixtureApp().request("/");
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("timestampRange");
+    expect(html).toContain("Date.parse");
+    expect(html).toContain("pointX(point, index)");
+    expect(html).toContain("markerX(marker)");
+    expect(html).toContain("value === null");
+  });
+
   it("returns session summary and normalized pressure series", async () => {
     const response = await fixtureApp().request("/api/session");
     expect(response.status).toBe(200);
@@ -153,7 +169,7 @@ describe("serve command and server app", () => {
     );
     expect(data.pressureSeries.at(-1)).toEqual(
       expect.objectContaining({
-        line: 10,
+        line: 11,
         totalProgress: 100,
         contextPressure: 25,
         nonCachedPressure: 100,
@@ -168,8 +184,8 @@ describe("serve command and server app", () => {
     const response = await fixtureApp().request("/api/events");
     expect(response.status).toBe(200);
     const data = await json<EventListResponse>(response);
-    expect(data.total).toBe(10);
-    expect(data.events).toHaveLength(10);
+    expect(data.total).toBe(11);
+    expect(data.events).toHaveLength(11);
     expect(data.events.map((event) => event.kind)).toEqual([
       "session_meta",
       "user_message",
@@ -179,6 +195,7 @@ describe("serve command and server app", () => {
       "tool_output",
       "reasoning",
       "apply_patch",
+      "compaction",
       "compaction",
       "token_count",
     ]);
@@ -193,7 +210,7 @@ describe("serve command and server app", () => {
     const response = await fixtureApp().request("/api/events?offset=0&limit=1");
     expect(response.status).toBe(200);
     const data = await json<EventListResponse>(response);
-    expect(data.total).toBe(10);
+    expect(data.total).toBe(11);
     expect(data.offset).toBe(0);
     expect(data.limit).toBe(1);
     expect(data.events).toHaveLength(1);
