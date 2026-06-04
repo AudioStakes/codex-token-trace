@@ -18,6 +18,7 @@ import {
   type TokenEvent,
   type ToolCall,
   type ToolUsage,
+  type ToolUsageGroup,
   toolDisplayName,
   toolInputLabel,
   toolOutputChars,
@@ -49,6 +50,8 @@ type CompactionImpact = Readonly<{
 }>;
 
 export type ToolUsageSort = "output-chars" | "next-new-input";
+
+export type ToolUsageGroupBy = "none" | "next-token";
 
 export type JsonReportOptions = Readonly<{
   largeEventMinChars?: number;
@@ -288,6 +291,83 @@ export const toolUsageTable = (
     toolUsageRows(toolUsages, limit, sort),
   );
 
+export const toolUsageGroups = (toolUsages: ToolUsage[]): ToolUsageGroup[] => {
+  const byNextTokenLine = new Map<number, ToolUsage[]>();
+  for (const usage of toolUsages) {
+    if (usage.nextTokenLine === null) {
+      continue;
+    }
+    const group = byNextTokenLine.get(usage.nextTokenLine) ?? [];
+    group.push(usage);
+    byNextTokenLine.set(usage.nextTokenLine, group);
+  }
+
+  return [...byNextTokenLine.entries()]
+    .map(([nextTokenLine, usages]) => {
+      const first = usages[0];
+      return {
+        nextTokenLine,
+        nextTokenTime: first?.nextTokenTime ?? null,
+        nextInputTokens: first?.nextInputTokens ?? null,
+        nextCachedInputTokens: first?.nextCachedInputTokens ?? null,
+        nextNonCachedInputTokens: first?.nextNonCachedInputTokens ?? null,
+        nextNewInputRatio: first?.nextNewInputRatio ?? null,
+        nextOutputTokens: first?.nextOutputTokens ?? null,
+        nextTotalTokens: first?.nextTotalTokens ?? null,
+        toolCount: usages.length,
+        outputChars: usages.reduce((sum, usage) => sum + usage.outputChars, 0),
+        topTools: [...usages].sort((a, b) => b.outputChars - a.outputChars),
+      };
+    })
+    .sort((a, b) => {
+      const byNextNewInput =
+        (b.nextNonCachedInputTokens ?? -1) - (a.nextNonCachedInputTokens ?? -1);
+      if (byNextNewInput !== 0) {
+        return byNextNewInput;
+      }
+      return b.outputChars - a.outputChars;
+    });
+};
+
+const topToolsText = (tools: ToolUsage[], limit: number, width: number): string =>
+  shorten(
+    tools
+      .slice(0, limit)
+      .map((tool) => `${toolDisplayName(tool)}: ${toolInputLabel(tool)}`)
+      .join(", "),
+    width,
+  );
+
+const toolUsageGroupRows = (
+  groups: ToolUsageGroup[],
+  limit: number,
+): Array<Array<string | number>> =>
+  groups
+    .slice(0, limit)
+    .map((group) => [
+      formatInt(group.nextNonCachedInputTokens),
+      formatPct(group.nextNewInputRatio),
+      group.nextTokenLine,
+      group.nextTokenTime ?? "-",
+      group.toolCount,
+      formatInt(group.outputChars),
+      topToolsText(group.topTools, 3, 100),
+    ]);
+
+export const toolUsageGroupTable = (toolUsages: ToolUsage[], limit: number): string =>
+  table(
+    [
+      "next_new_input",
+      "next_new_ratio",
+      "token_line",
+      "time",
+      "tools",
+      "output_chars",
+      "top_tools",
+    ],
+    toolUsageGroupRows(toolUsageGroups(toolUsages), limit),
+  );
+
 export const aggregateToolOutputTable = (
   analyses: SessionAnalysis[],
   limit: number,
@@ -439,6 +519,20 @@ const toolUsageToJson = (usage: ToolUsage): Record<string, unknown> => ({
   nextTotalTokens: usage.nextTotalTokens,
 });
 
+const toolUsageGroupToJson = (group: ToolUsageGroup): Record<string, unknown> => ({
+  nextTokenLine: group.nextTokenLine,
+  nextTokenTime: group.nextTokenTime,
+  nextInputTokens: group.nextInputTokens,
+  nextCachedInputTokens: group.nextCachedInputTokens,
+  nextNonCachedInputTokens: group.nextNonCachedInputTokens,
+  nextNewInputRatio: group.nextNewInputRatio,
+  nextOutputTokens: group.nextOutputTokens,
+  nextTotalTokens: group.nextTotalTokens,
+  toolCount: group.toolCount,
+  outputChars: group.outputChars,
+  topTools: group.topTools.map(toolUsageToJson),
+});
+
 export const sessionToJson = (
   analysis: SessionAnalysis,
   options: JsonReportOptions = {},
@@ -472,6 +566,9 @@ export const sessionToJson = (
       afterLine: event.after?.lineNo ?? null,
     })),
     toolUsages: analysis.toolUsages.slice(0, resolved.limit).map(toolUsageToJson),
+    toolUsageGroups: toolUsageGroups(analysis.toolUsages)
+      .slice(0, resolved.limit)
+      .map(toolUsageGroupToJson),
     heaviestTools: analysis.tools
       .filter((tool) => tool.outputChars > 0)
       .sort((a, b) => b.outputChars - a.outputChars)

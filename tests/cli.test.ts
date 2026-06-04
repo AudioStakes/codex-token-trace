@@ -107,6 +107,7 @@ describe("cli", () => {
     expect(parsed.session).toHaveProperty("drivers");
     expect(parsed.session).toHaveProperty("heaviestTools");
     expect(parsed.session).toHaveProperty("toolUsages");
+    expect(parsed.session).toHaveProperty("toolUsageGroups");
     expect(parsed.session).toHaveProperty("intervals");
     expect(parsed.session).toHaveProperty("largeEvents");
     expect(parsed.session).toHaveProperty("compactions");
@@ -123,6 +124,55 @@ describe("cli", () => {
     expect(output).toContain("apply_patch");
     expect(output).toContain("next_new_input");
     expect(output).toContain("next_new_ratio");
+  });
+
+  it("runs grouped tool-usage by next token", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ctt-cli-grouped-tool-usage-"));
+    const path = writeJsonl(dir, "grouped-session.jsonl", [
+      {
+        timestamp: "tool-a-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "tool_a",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "sed -n 1,20p src/a.ts" }),
+        },
+      },
+      {
+        timestamp: "tool-a-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "tool_a", output: "a".repeat(12) },
+      },
+      {
+        timestamp: "tool-b-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "tool_b",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "rg grouped src" }),
+        },
+      },
+      {
+        timestamp: "tool-b-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "tool_b", output: "b".repeat(34) },
+      },
+      tokenRow(500, "shared-token"),
+    ]);
+
+    const { code, output } = captureLog(() =>
+      run(["tool-usage", "--group-by", "next-token", path]),
+    );
+
+    expect(code).toBe(0);
+    expect(output).toContain("# Tool usage groups by next token_count");
+    expect(output).toContain("next_new_input");
+    expect(output).toContain("token_line");
+    expect(output).toContain("tools");
+    expect(output).toContain("46");
+    expect(output).toContain("exec_command: rg grouped src");
   });
 
   it("sorts tool usage by output chars or next new input", () => {
@@ -146,23 +196,31 @@ describe("cli", () => {
     );
   });
 
-  it("emits and limits toolUsages in analyze JSON", () => {
+  it("emits and limits toolUsages and toolUsageGroups in analyze JSON", () => {
     const all = captureLog(() =>
       run(["analyze", "--json", fixturePath("tool-usage-session.jsonl")]),
     );
     expect(all.code).toBe(0);
     const fullSession = JSON.parse(all.output) as {
-      session: { toolUsages: Array<{ nextNewInputRatio?: number | null }> };
+      session: {
+        toolUsages: Array<{ nextNewInputRatio?: number | null }>;
+        toolUsageGroups: Array<{ nextNewInputRatio?: number | null }>;
+      };
     };
     expect(fullSession.session.toolUsages.length).toBeGreaterThan(0);
+    expect(fullSession.session.toolUsageGroups.length).toBeGreaterThan(0);
     expect(fullSession.session.toolUsages[0]).toHaveProperty("nextNewInputRatio");
+    expect(fullSession.session.toolUsageGroups[0]).toHaveProperty("nextNewInputRatio");
 
     const limited = captureLog(() =>
       run(["analyze", "--json", "--limit", "1", fixturePath("tool-usage-session.jsonl")]),
     );
     expect(limited.code).toBe(0);
-    const limitedSession = JSON.parse(limited.output) as { session: { toolUsages: unknown[] } };
+    const limitedSession = JSON.parse(limited.output) as {
+      session: { toolUsages: unknown[]; toolUsageGroups: unknown[] };
+    };
     expect(limitedSession.session.toolUsages.length).toBeLessThanOrEqual(1);
+    expect(limitedSession.session.toolUsageGroups.length).toBeLessThanOrEqual(1);
   });
 
   it("runs tools exec-only without including view_image tools", () => {
@@ -262,6 +320,7 @@ describe("cli", () => {
           largeEvents: unknown[];
           heaviestTools: unknown[];
           toolUsages: unknown[];
+          toolUsageGroups: unknown[];
           intervals: unknown[];
           compactions: unknown[];
         };
@@ -270,6 +329,7 @@ describe("cli", () => {
     expect(session.largeEvents).toHaveLength(1);
     expect(session.heaviestTools).toHaveLength(1);
     expect(session.toolUsages).toHaveLength(1);
+    expect(session.toolUsageGroups).toHaveLength(1);
     expect(session.intervals).toHaveLength(1);
     expect(session.compactions).toHaveLength(1);
   });

@@ -13,9 +13,11 @@ import {
   largeEventsTable,
   sessionSummary,
   sessionsTable,
+  type ToolUsageGroupBy,
   type ToolUsageSort,
   timelineTable,
   toolOutputTable,
+  toolUsageGroupTable,
   toolUsageTable,
 } from "./reports.js";
 
@@ -28,6 +30,7 @@ type ParsedArgs = Readonly<{
   json: boolean;
   execOnly: boolean;
   toolUsageSort: ToolUsageSort;
+  toolUsageGroupBy: ToolUsageGroupBy;
 }>;
 
 const VERSION = "0.3.0";
@@ -38,7 +41,7 @@ Usage:
   codex-token-trace analyze [paths...] [--session text] [--limit n] [--min-chars n] [--json]
   codex-token-trace sessions [paths...] [--limit n] [--json]
   codex-token-trace tools [paths...] [--session text] [--limit n] [--exec-only]
-  codex-token-trace tool-usage [paths...] [--session text] [--limit n] [--sort output-chars|next-new-input]
+  codex-token-trace tool-usage [paths...] [--session text] [--limit n] [--sort output-chars|next-new-input] [--group-by next-token]
   codex-token-trace commands [paths...] [--session text] [--limit n] [--exec-only]
   codex-token-trace timeline [paths...] [--session text] [--limit n]
   codex-token-trace intervals [paths...] [--session text] [--limit n]
@@ -72,6 +75,7 @@ const parseArgs = (argv: string[]): ParsedArgs => {
   let json = false;
   let execOnly = false;
   let toolUsageSort: ToolUsageSort = "output-chars";
+  let toolUsageGroupBy: ToolUsageGroupBy = "none";
 
   const rest = [...argv];
   const first = rest[0];
@@ -109,12 +113,29 @@ const parseArgs = (argv: string[]): ParsedArgs => {
       }
       toolUsageSort = value;
       i += 1;
+    } else if (arg === "--group-by") {
+      const value = rest[i + 1];
+      if (value !== "next-token") {
+        throw new Error(`Unknown tool-usage group-by: ${value ?? ""}`);
+      }
+      toolUsageGroupBy = value;
+      i += 1;
     } else {
       paths.push(arg);
     }
   }
 
-  return { command, paths, session, limit, minChars, json, execOnly, toolUsageSort };
+  return {
+    command,
+    paths,
+    session,
+    limit,
+    minChars,
+    json,
+    execOnly,
+    toolUsageSort,
+    toolUsageGroupBy,
+  };
 };
 
 const loadAnalyses = (paths: string[]): SessionAnalysis[] => {
@@ -170,6 +191,9 @@ const printAnalyze = (analysis: SessionAnalysis, args: ParsedArgs): void => {
   console.log(`# Heaviest exec command outputs (top ${args.limit})`);
   console.log(toolOutputTable(analysis.tools, args.limit, true));
   console.log();
+  console.log(`# Tool usage groups by next token_count (top ${args.limit})`);
+  console.log(toolUsageGroupTable(analysis.toolUsages, args.limit));
+  console.log();
   console.log(`# Non-cached input spikes (top ${args.limit})`);
   console.log(intervalTable(analysis, args.limit));
 };
@@ -219,8 +243,13 @@ export const run = (argv: string[]): number => {
       console.log(toolOutputTable(analysis.tools, args.limit, args.execOnly));
     }
   } else if (args.command === "tool-usage") {
-    console.log("# Tool usage impact");
-    console.log(toolUsageTable(analysis.toolUsages, args.limit, args.toolUsageSort));
+    if (args.toolUsageGroupBy === "next-token") {
+      console.log("# Tool usage groups by next token_count");
+      console.log(toolUsageGroupTable(analysis.toolUsages, args.limit));
+    } else {
+      console.log("# Tool usage impact");
+      console.log(toolUsageTable(analysis.toolUsages, args.limit, args.toolUsageSort));
+    }
   } else if (args.command === "timeline") {
     console.log(timelineTable(analysis, args.limit));
   } else if (args.command === "intervals") {
