@@ -21,6 +21,7 @@ It does **not** call the OpenAI API, proxy traffic, upload logs, or change Codex
 - Large raw events such as huge messages, user messages, compactions, patches, and tool outputs
 - Context compaction events and before/after token usage
 - Intervals where non-cached input spiked, including the largest event types inside each interval
+- Short heuristic diagnosis of likely token usage drivers
 - Optional JSON output for dashboards or further processing
 
 ## Install and development setup
@@ -63,6 +64,14 @@ By default, commands scan `~/.codex/sessions`.
 ```bash
 codex-token-trace analyze
 ```
+
+### Diagnose likely token usage drivers
+
+```bash
+codex-token-trace diagnose
+```
+
+Print a short heuristic diagnosis of the likely token usage drivers for a session.
 
 ### List sessions
 
