@@ -8,6 +8,7 @@ import type {
   SessionAnalysis,
   TokenEvent,
   ToolCall,
+  ToolUsage,
   Usage,
 } from "./models.js";
 import { emptyUsage, eventTypeKey } from "./models.js";
@@ -26,6 +27,10 @@ type MutableToolCall = {
   inputChars: number;
   outputChars: number;
   outputEvents: number;
+  startLine: number | null;
+  startTime: string | null;
+  endLine: number | null;
+  endTime: string | null;
 };
 
 const isObject = (value: JsonValue | undefined): value is JsonObject =>
@@ -127,6 +132,13 @@ const callIdOf = (payload: JsonObject): string | null =>
 const toolNameOf = (payload: JsonObject, fallback: string | null): string | null =>
   asString(payload.name) ?? asString(payload.tool_name) ?? asString(payload.tool) ?? fallback;
 
+const inferToolName = (name: string | null, inputPreview: string): string | null => {
+  if (inputPreview.trimStart().startsWith("*** Begin Patch")) {
+    return "apply_patch";
+  }
+  return name;
+};
+
 const outputCharsOf = (payload: JsonObject): number => {
   for (const key of ["output", "result", "content", "text"] as const) {
     if (key in payload) {
@@ -136,11 +148,62 @@ const outputCharsOf = (payload: JsonObject): number => {
   return jsonLength(payload);
 };
 
-const toToolCall = (tool: MutableToolCall): ToolCall => ({ ...tool });
+const toToolCall = (tool: MutableToolCall): ToolCall => ({
+  callId: tool.callId,
+  timestamp: tool.timestamp,
+  name: tool.name,
+  command: tool.command,
+  argumentsChars: tool.argumentsChars,
+  callType: tool.callType,
+  inputPreview: tool.inputPreview,
+  inputChars: tool.inputChars,
+  outputChars: tool.outputChars,
+  outputEvents: tool.outputEvents,
+});
 
-const updateOutput = (tool: MutableToolCall, outputChars: number): void => {
+const nextNewInputRatio = (nextToken: TokenEvent | null): number | null => {
+  if (nextToken === null || nextToken.last.inputTokens <= 0) {
+    return null;
+  }
+  return (
+    Math.max(0, nextToken.last.inputTokens - nextToken.last.cachedInputTokens) /
+    nextToken.last.inputTokens
+  );
+};
+
+const toToolUsage = (tool: MutableToolCall, nextToken: TokenEvent | null): ToolUsage => {
+  const call = toToolCall(tool);
+  const nextNonCachedInputTokens =
+    nextToken === null
+      ? null
+      : Math.max(0, nextToken.last.inputTokens - nextToken.last.cachedInputTokens);
+  return {
+    ...call,
+    startLine: tool.startLine,
+    startTime: tool.startTime,
+    endLine: tool.endLine,
+    endTime: tool.endTime,
+    nextTokenLine: nextToken?.lineNo ?? null,
+    nextTokenTime: nextToken?.timestamp ?? null,
+    nextInputTokens: nextToken?.last.inputTokens ?? null,
+    nextCachedInputTokens: nextToken?.last.cachedInputTokens ?? null,
+    nextNonCachedInputTokens,
+    nextNewInputRatio: nextNewInputRatio(nextToken),
+    nextOutputTokens: nextToken?.last.outputTokens ?? null,
+    nextTotalTokens: nextToken?.total.totalTokens ?? null,
+  };
+};
+
+const updateOutput = (
+  tool: MutableToolCall,
+  outputChars: number,
+  lineNo: number,
+  timestamp: string | null,
+): void => {
   tool.outputChars += outputChars;
   tool.outputEvents += 1;
+  tool.endLine = lineNo;
+  tool.endTime = timestamp;
 };
 
 export const parseSessionFile = (path: string): SessionAnalysis => {
@@ -193,7 +256,7 @@ export const parseSessionFile = (path: string): SessionAnalysis => {
         toolById.set(callId, {
           callId,
           timestamp: event.timestamp,
-          name: toolNameOf(payload, ptype),
+          name: inferToolName(toolNameOf(payload, ptype), input.preview),
           command: input.label,
           argumentsChars: input.chars,
           callType: ptype,
@@ -201,6 +264,10 @@ export const parseSessionFile = (path: string): SessionAnalysis => {
           inputChars: input.chars,
           outputChars: 0,
           outputEvents: 0,
+          startLine: lineNo,
+          startTime: event.timestamp,
+          endLine: null,
+          endTime: null,
         });
       }
     } else if (ptype !== null && OUTPUT_TYPES.has(ptype)) {
@@ -208,7 +275,7 @@ export const parseSessionFile = (path: string): SessionAnalysis => {
       if (callId !== null) {
         const existing = toolById.get(callId);
         if (existing !== undefined) {
-          updateOutput(existing, outputCharsOf(payload));
+          updateOutput(existing, outputCharsOf(payload), lineNo, event.timestamp);
         } else {
           toolById.set(callId, {
             callId,
@@ -221,6 +288,10 @@ export const parseSessionFile = (path: string): SessionAnalysis => {
             inputChars: 0,
             outputChars: outputCharsOf(payload),
             outputEvents: 1,
+            startLine: null,
+            startTime: null,
+            endLine: lineNo,
+            endTime: event.timestamp,
           });
         }
       }
@@ -246,6 +317,7 @@ export const parseSessionFile = (path: string): SessionAnalysis => {
     .map(toToolCall)
     .sort((a, b) => b.outputChars - a.outputChars);
   const uniqueTokenEvents = tokenEvents.filter((event) => !event.duplicateTotal);
+  const toolUsages = buildToolUsages(toolById, uniqueTokenEvents);
 
   return {
     path,
@@ -254,12 +326,28 @@ export const parseSessionFile = (path: string): SessionAnalysis => {
     tokenEvents,
     uniqueTokenEvents,
     tools,
+    toolUsages,
     intervals: buildIntervals(events, tokenEvents, toolById),
     sessionMetaCharsTotal,
     sessionMetaCharsMax,
     sessionMetaCount,
   };
 };
+
+const buildToolUsages = (
+  toolById: ReadonlyMap<string, MutableToolCall>,
+  uniqueTokenEvents: TokenEvent[],
+): ToolUsage[] =>
+  [...toolById.values()]
+    .map((tool) => {
+      const anchorLine = tool.endLine ?? tool.startLine;
+      const nextToken =
+        anchorLine === null
+          ? null
+          : (uniqueTokenEvents.find((event) => event.lineNo > anchorLine) ?? null);
+      return toToolUsage(tool, nextToken);
+    })
+    .sort((a, b) => b.outputChars - a.outputChars);
 
 const buildIntervals = (
   events: EventRecord[],

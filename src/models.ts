@@ -46,6 +46,22 @@ export type ToolCall = Readonly<{
   outputEvents: number;
 }>;
 
+export type ToolUsage = ToolCall &
+  Readonly<{
+    startLine: number | null;
+    startTime: string | null;
+    endLine: number | null;
+    endTime: string | null;
+    nextTokenLine: number | null;
+    nextTokenTime: string | null;
+    nextInputTokens: number | null;
+    nextCachedInputTokens: number | null;
+    nextNonCachedInputTokens: number | null;
+    nextNewInputRatio: number | null;
+    nextOutputTokens: number | null;
+    nextTotalTokens: number | null;
+  }>;
+
 export type Interval = Readonly<{
   previousTokenLine: number | null;
   tokenEvent: TokenEvent;
@@ -62,6 +78,7 @@ export type SessionAnalysis = Readonly<{
   tokenEvents: TokenEvent[];
   uniqueTokenEvents: TokenEvent[];
   tools: ToolCall[];
+  toolUsages: ToolUsage[];
   intervals: Interval[];
   sessionMetaCharsTotal: number;
   sessionMetaCharsMax: number;

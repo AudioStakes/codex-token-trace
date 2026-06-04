@@ -10,7 +10,13 @@ import {
   topIntervalEventTypes,
 } from "../src/models.js";
 import { parseSessionFile } from "../src/parser.js";
-import { compactionImpacts, largeEvents, sessionToJson, toolOutputTable } from "../src/reports.js";
+import {
+  compactionImpacts,
+  largeEvents,
+  sessionToJson,
+  toolOutputTable,
+  toolUsageTable,
+} from "../src/reports.js";
 
 const writeJsonl = (rows: Array<Record<string, unknown>>): string => {
   const dir = mkdtempSync(join(tmpdir(), "ctt-"));
@@ -155,6 +161,157 @@ describe("parseSessionFile", () => {
     ).toBe(1250);
   });
 
+  it("builds tool usages with summed outputs and next unique token counts", () => {
+    const path = writeJsonl([
+      token(100, 100, 20, "before"),
+      {
+        timestamp: "call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "call_1",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "rg foo src" }),
+        },
+      },
+      {
+        timestamp: "out-1",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "call_1", output: "x".repeat(100) },
+      },
+      {
+        timestamp: "out-2",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "call_1", output: "y".repeat(50) },
+      },
+      token(200, 180, 40, "next"),
+      token(200, 180, 40, "duplicate"),
+      {
+        timestamp: "patch-call",
+        type: "response_item",
+        payload: {
+          type: "custom_tool_call",
+          call_id: "patch_1",
+          input: "*** Begin Patch\n*** End Patch",
+        },
+      },
+      {
+        timestamp: "patch-out",
+        type: "response_item",
+        payload: { type: "custom_tool_call_output", call_id: "patch_1", output: "Done!" },
+      },
+      token(300, 250, 100, "next-after-duplicate"),
+    ]);
+    const analysis = parseSessionFile(path);
+    const usage = analysis.toolUsages.find((tool) => tool.callId === "call_1");
+    const patch = analysis.toolUsages.find((tool) => tool.callId === "patch_1");
+    expect(usage).toEqual(
+      expect.objectContaining({
+        name: "exec_command",
+        outputChars: 150,
+        outputEvents: 2,
+        startLine: 2,
+        endLine: 4,
+        nextTokenLine: 5,
+        nextTokenTime: "next",
+        nextInputTokens: 180,
+        nextCachedInputTokens: 40,
+        nextNonCachedInputTokens: 140,
+        nextNewInputRatio: 140 / 180,
+        nextOutputTokens: 10,
+        nextTotalTokens: 210,
+      }),
+    );
+    expect(patch).toEqual(
+      expect.objectContaining({
+        name: "apply_patch",
+        nextTokenLine: 9,
+        nextNonCachedInputTokens: 150,
+      }),
+    );
+  });
+
+  it("builds tool usages for orphan outputs and calls without following token counts", () => {
+    const path = writeJsonl([
+      {
+        timestamp: "orphan-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "orphan", output: "orphan" },
+      },
+      token(100, 100, 20, "after-orphan"),
+      {
+        timestamp: "lonely-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "lonely",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "pwd" }),
+        },
+      },
+    ]);
+    const analysis = parseSessionFile(path);
+    const orphan = analysis.toolUsages.find((tool) => tool.callId === "orphan");
+    const lonely = analysis.toolUsages.find((tool) => tool.callId === "lonely");
+    expect(orphan).toEqual(
+      expect.objectContaining({
+        startLine: null,
+        endLine: 1,
+        outputChars: 6,
+        nextTokenLine: 2,
+      }),
+    );
+    expect(lonely).toEqual(
+      expect.objectContaining({
+        outputChars: 0,
+        startLine: 3,
+        endLine: null,
+        nextTokenLine: null,
+        nextNonCachedInputTokens: null,
+        nextNewInputRatio: null,
+      }),
+    );
+    expect(toolUsageTable(analysis.toolUsages, 10)).toContain("next_new_input");
+  });
+
+  it("computes tool usage new input ratio as null when next input is missing or zero", () => {
+    const path = writeJsonl([
+      {
+        timestamp: "zero-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "zero",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "zero input" }),
+        },
+      },
+      {
+        timestamp: "zero-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "zero", output: "z" },
+      },
+      token(0, 0, 0, "zero-token"),
+      {
+        timestamp: "missing-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "missing",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "missing token" }),
+        },
+      },
+    ]);
+    const analysis = parseSessionFile(path);
+    expect(
+      analysis.toolUsages.find((tool) => tool.callId === "zero")?.nextNewInputRatio,
+    ).toBeNull();
+    expect(
+      analysis.toolUsages.find((tool) => tool.callId === "missing")?.nextNewInputRatio,
+    ).toBeNull();
+  });
+
   it("handles custom view_image tools separately from exec commands", () => {
     const path = writeJsonl([
       {
@@ -280,11 +437,22 @@ describe("parseSessionFile", () => {
     expect(typeof json.toolOutputChars).toBe("number");
     expect(json).toHaveProperty("drivers");
     expect(json).toHaveProperty("heaviestTools");
+    expect(json).toHaveProperty("toolUsages");
     expect(json).toHaveProperty("intervals");
     expect(json).toHaveProperty("largeEvents");
     expect(json).toHaveProperty("compactions");
     expect(json.heaviestTools).toEqual(
       expect.arrayContaining([expect.objectContaining({ tool: "exec_command", outputChars: 100 })]),
+    );
+    expect(json.toolUsages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tool: "exec_command",
+          outputChars: 100,
+          nextNonCachedInputTokens: 900,
+          nextNewInputRatio: 0.9,
+        }),
+      ]),
     );
   });
 });
