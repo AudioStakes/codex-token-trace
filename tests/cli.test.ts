@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { run } from "../src/cli.js";
 
+const fixturePath = (name: string): string => join(process.cwd(), "tests", "fixtures", name);
+
 const writeFixture = (): string => {
   const dir = mkdtempSync(join(tmpdir(), "ctt-cli-"));
   const path = join(dir, "session.jsonl");
@@ -37,20 +39,61 @@ const writeFixture = (): string => {
   return path;
 };
 
+const captureLog = (fn: () => number): { code: number; output: string } => {
+  const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+  try {
+    const code = fn();
+    const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
+    return { code, output };
+  } finally {
+    spy.mockRestore();
+  }
+};
+
 describe("cli", () => {
   it("runs analyze json", () => {
-    const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const code = run(["analyze", writeFixture(), "--json"]);
+    const { code, output } = captureLog(() => run(["analyze", writeFixture(), "--json"]));
     expect(code).toBe(0);
-    const output = spy.mock.calls.map((call) => call.join(" ")).join("\n");
     expect(JSON.parse(output)).toHaveProperty("session");
-    spy.mockRestore();
   });
 
   it("prints help", () => {
-    const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
-    expect(run(["--help"])).toBe(0);
-    expect(spy.mock.calls[0]?.[0]).toContain("Usage:");
-    spy.mockRestore();
+    const { code, output } = captureLog(() => run(["--help"]));
+    expect(code).toBe(0);
+    expect(output).toContain("Usage:");
+  });
+
+  it("emits analyze JSON with expected numeric sections for the minimal fixture", () => {
+    const { code, output } = captureLog(() =>
+      run(["analyze", "--json", fixturePath("minimal-session.jsonl")]),
+    );
+    expect(code).toBe(0);
+    const parsed = JSON.parse(output) as { session: Record<string, unknown> };
+    expect(parsed.session.finalTotal).toEqual(
+      expect.objectContaining({ inputTokens: 100, cachedInputTokens: 25, totalTokens: 110 }),
+    );
+    expect(typeof parsed.session.events).toBe("number");
+    expect(parsed.session).toHaveProperty("drivers");
+    expect(parsed.session).toHaveProperty("heaviestTools");
+    expect(parsed.session).toHaveProperty("intervals");
+    expect(parsed.session).toHaveProperty("largeEvents");
+    expect(parsed.session).toHaveProperty("compactions");
+  });
+
+  it("runs tools exec-only without including view_image tools", () => {
+    const { code, output } = captureLog(() =>
+      run(["tools", "--exec-only", fixturePath("image-tool-session.jsonl")]),
+    );
+    expect(code).toBe(0);
+    expect(output).toContain("output_chars");
+    expect(output).not.toContain("view_image");
+  });
+
+  it("runs large-events against the minimal fixture", () => {
+    const { code, output } = captureLog(() =>
+      run(["large-events", fixturePath("minimal-session.jsonl")]),
+    );
+    expect(code).toBe(0);
+    expect(output).toContain("raw_chars");
   });
 });
