@@ -1,0 +1,25 @@
+[project]
+name = "codex-token-trace"
+version = "0.2.0"
+description = "Trace what drives Codex token usage from local session logs."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "codex-token-trace contributors" }]
+license = { text = "MIT" }
+keywords = ["codex", "tokens", "usage", "trace", "cli"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+[project.scripts]
+codex-token-trace = "codex_token_trace.cli:main"
+ctt = "codex_token_trace.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
