@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+set -eu
+
+printf '%s\n' 'Running repository auto-fix stage (npm run fix)...'
+npm run fix
+
+if ! git diff --quiet; then
+  printf '%s\n' 'Auto-fix changed tracked files; staging those fixes for this commit.'
+  git add -u
+fi
+
+printf '%s\n' 'Running repository verification gate (npm run verify)...'
+npm run verify
