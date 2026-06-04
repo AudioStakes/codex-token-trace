@@ -113,6 +113,22 @@ describe("cli", () => {
     expect(parsed.session).toHaveProperty("compactions");
   });
 
+  it("runs diagnose against a synthetic fixture", () => {
+    const { code, output } = captureLog(() =>
+      run(["diagnose", "--limit", "2", fixturePath("diagnose-session.jsonl")]),
+    );
+
+    expect(code).toBe(0);
+    expect(output).toContain("# Diagnosis");
+    expect(output).toContain("Raw log size is likely dominated by");
+    expect(output).toContain("function_call_output");
+    expect(output).toContain("Tool output size is likely dominated by view_image");
+    expect(output).toContain("Non-cached input spikes are associated with");
+    expect(output).toContain("after apply_patch");
+    expect(output).toContain("after 2 tools");
+    expect(output).toContain("Context compaction happened 1 time");
+  });
+
   it("runs tool-usage against a synthetic fixture", () => {
     const { code, output } = captureLog(() =>
       run(["tool-usage", fixturePath("tool-usage-session.jsonl")]),

@@ -193,6 +193,121 @@ export const driversTable = (analysis: SessionAnalysis): string =>
     ]),
   );
 
+const formatChars = (value: number): string => {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)}M chars`;
+  }
+  return `${formatInt(value)} chars`;
+};
+
+const plural = (count: number, singular: string, pluralForm = `${singular}s`): string =>
+  `${formatInt(count)} ${count === 1 ? singular : pluralForm}`;
+
+const toolOutputGroups = (
+  tools: ToolCall[],
+): Array<Readonly<{ tool: string; outputChars: number; calls: number }>> => {
+  const byTool = new Map<string, { tool: string; outputChars: number; calls: number }>();
+  for (const tool of tools) {
+    if (tool.outputChars <= 0) {
+      continue;
+    }
+    const name = toolDisplayName(tool);
+    const current = byTool.get(name) ?? { tool: name, outputChars: 0, calls: 0 };
+    current.outputChars += tool.outputChars;
+    current.calls += 1;
+    byTool.set(name, current);
+  }
+  return [...byTool.values()].sort((a, b) => b.outputChars - a.outputChars);
+};
+
+const groupSummary = (group: ToolUsageGroup): string => {
+  const output = formatChars(group.outputChars);
+  if (group.toolCount === 1) {
+    const tool = group.topTools[0];
+    const name = tool === undefined ? "1 tool" : toolDisplayName(tool);
+    return `line ${group.nextTokenLine}: ${formatInt(
+      group.nextNonCachedInputTokens,
+    )} new input after ${name}, ${output} output`;
+  }
+  return `line ${group.nextTokenLine}: ${formatInt(
+    group.nextNonCachedInputTokens,
+  )} new input after ${plural(group.toolCount, "tool")}, ${output} output`;
+};
+
+const suggestedActions = (analysis: SessionAnalysis): string[] => {
+  const topTools = toolOutputGroups(analysis.tools)
+    .slice(0, 3)
+    .map((group) => group.tool);
+  const actions = ["Narrow broad rg/sed commands before reading large outputs."];
+  if (topTools.includes("view_image")) {
+    actions.push(
+      "Use view_image intentionally; it is output-size heavy even when next_new_input is low.",
+    );
+  }
+  actions.push("Avoid repeated reads of generated dist/assets unless necessary.");
+  return actions;
+};
+
+export const diagnosisReport = (analysis: SessionAnalysis, limit: number): string => {
+  const maxItems = Math.max(1, limit);
+  const causes: string[] = [];
+  const rawDriver = eventTypeTotals(analysis)[0];
+  if (rawDriver !== undefined) {
+    causes.push(
+      `Raw log size is likely dominated by ${rawDriver.eventType}: ${formatChars(
+        rawDriver.rawChars,
+      )} across ${plural(rawDriver.events, "event")}.`,
+    );
+  }
+
+  const toolDriver = toolOutputGroups(analysis.tools)[0];
+  if (toolDriver !== undefined) {
+    causes.push(
+      `Tool output size is likely dominated by ${toolDriver.tool}: ${formatChars(
+        toolDriver.outputChars,
+      )} across ${plural(toolDriver.calls, "call")}.`,
+    );
+  }
+
+  const groups = toolUsageGroups(analysis.toolUsages)
+    .filter((group) => (group.nextNonCachedInputTokens ?? 0) > 0)
+    .slice(0, maxItems);
+  if (groups.length > 0) {
+    causes.push(
+      [
+        "Non-cached input spikes are associated with recent tool intervals:",
+        ...groups.map((group) => `   - ${groupSummary(group)}`),
+      ].join("\n"),
+    );
+  }
+
+  const compacted = compactionImpacts(analysis, Number.MAX_SAFE_INTEGER);
+  if (compacted.length > 0) {
+    const maxCompactedChars = Math.max(...compacted.map((event) => event.rawChars));
+    causes.push(
+      `Context compaction happened ${plural(compacted.length, "time", "times")}, max compacted event ${formatChars(
+        maxCompactedChars,
+      )}.`,
+    );
+  }
+
+  if (causes.length === 0) {
+    causes.push("No obvious heuristic drivers were found in this session.");
+  }
+
+  return [
+    "# Diagnosis",
+    "",
+    "Likely causes:",
+    ...causes.slice(0, maxItems + 2).map((cause, index) => `${index + 1}. ${cause}`),
+    "",
+    "Suggested next actions:",
+    ...suggestedActions(analysis)
+      .slice(0, maxItems + 1)
+      .map((action) => `- ${action}`),
+  ].join("\n");
+};
+
 export const largeEventsTable = (
   analysis: SessionAnalysis,
   minChars: number,

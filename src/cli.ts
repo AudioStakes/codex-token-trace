@@ -8,6 +8,7 @@ import {
   aggregateToolOutputTable,
   analysesToJson,
   compactionTable,
+  diagnosisReport,
   driversTable,
   intervalTable,
   largeEventsTable,
@@ -39,6 +40,7 @@ const help = `codex-token-trace ${VERSION}
 
 Usage:
   codex-token-trace analyze [paths...] [--session text] [--limit n] [--min-chars n] [--json]
+  codex-token-trace diagnose [paths...] [--session text] [--limit n]
   codex-token-trace sessions [paths...] [--limit n] [--json]
   codex-token-trace tools [paths...] [--session text] [--limit n] [--exec-only]
   codex-token-trace tool-usage [paths...] [--session text] [--limit n] [--sort output-chars|next-new-input] [--group-by next-token]
@@ -58,6 +60,7 @@ const defaultPaths = (): string[] => [join(homedir(), ".codex", "sessions")];
 const parseArgs = (argv: string[]): ParsedArgs => {
   const commands = new Set([
     "analyze",
+    "diagnose",
     "sessions",
     "tools",
     "tool-usage",
@@ -225,7 +228,9 @@ export const run = (argv: string[]): number => {
   }
 
   const analysis = pickSession(analyses, args.session);
-  if (args.command === "analyze") {
+  if (args.command === "diagnose") {
+    console.log(diagnosisReport(analysis, args.limit));
+  } else if (args.command === "analyze") {
     if (args.json) {
       console.log(
         analysesToJson(analyses, analysis, {
