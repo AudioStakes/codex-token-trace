@@ -23,7 +23,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "fix": "npm run format && npm run lint:fix",
-    "verify": "npm run format:check && npm run lint && npm run test && npm run build && npm run dev -- --help && npm run dev -- analyze --json tests/fixtures/minimal-session.jsonl && npm run dev -- diagnose --limit 2 tests/fixtures/diagnose-session.jsonl",
+    "verify": "node scripts/verify.mjs",
     "check": "npm run verify"
   },
   "engines": {
@@ -35,5 +35,9 @@
     "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.3",
+    "hono": "^4.12.9"
   }
 }

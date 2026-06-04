@@ -21,6 +21,7 @@ import {
   toolUsageGroupTable,
   toolUsageTable,
 } from "./reports.js";
+import { startServer } from "./server.js";
 
 type ParsedArgs = Readonly<{
   command: string;
@@ -32,6 +33,7 @@ type ParsedArgs = Readonly<{
   execOnly: boolean;
   toolUsageSort: ToolUsageSort;
   toolUsageGroupBy: ToolUsageGroupBy;
+  port: number;
 }>;
 
 const VERSION = "0.3.0";
@@ -49,6 +51,7 @@ Usage:
   codex-token-trace intervals [paths...] [--session text] [--limit n]
   codex-token-trace compactions [paths...] [--session text] [--limit n]
   codex-token-trace large-events [paths...] [--session text] [--limit n] [--min-chars n]
+  codex-token-trace serve [paths...] [--session text] [--port n]
 
 Defaults:
   paths: ~/.codex/sessions
@@ -69,6 +72,7 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     "intervals",
     "compactions",
     "large-events",
+    "serve",
   ]);
   let command = "analyze";
   const paths: string[] = [];
@@ -79,6 +83,7 @@ const parseArgs = (argv: string[]): ParsedArgs => {
   let execOnly = false;
   let toolUsageSort: ToolUsageSort = "output-chars";
   let toolUsageGroupBy: ToolUsageGroupBy = "none";
+  let port = 3030;
 
   const rest = [...argv];
   const first = rest[0];
@@ -109,6 +114,9 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     } else if (arg === "--min-chars") {
       minChars = Number(rest[i + 1] ?? minChars);
       i += 1;
+    } else if (arg === "--port") {
+      port = Number(rest[i + 1] ?? port);
+      i += 1;
     } else if (arg === "--sort") {
       const value = rest[i + 1];
       if (value !== "output-chars" && value !== "next-new-input") {
@@ -138,6 +146,7 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     execOnly,
     toolUsageSort,
     toolUsageGroupBy,
+    port,
   };
 };
 
@@ -228,7 +237,9 @@ export const run = (argv: string[]): number => {
   }
 
   const analysis = pickSession(analyses, args.session);
-  if (args.command === "diagnose") {
+  if (args.command === "serve") {
+    startServer(analysis, args.port);
+  } else if (args.command === "diagnose") {
     console.log(diagnosisReport(analysis, args.limit));
   } else if (args.command === "analyze") {
     if (args.json) {

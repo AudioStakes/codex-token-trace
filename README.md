@@ -128,6 +128,30 @@ codex-token-trace compactions
 codex-token-trace large-events
 ```
 
+
+### Start a local session timeline explorer server
+
+```bash
+codex-token-trace serve
+```
+
+Start a local session timeline explorer server. The server selects one session using the same path and `--session` flow as other single-session commands, then serves an inline HTML/CSS/JS UI with summary cards, a normalized pressure graph, an event list, and a detail panel.
+
+Development examples:
+
+```bash
+npm run dev -- serve --port 3030
+npm run dev -- serve ~/.codex/sessions/2026/05/25/session.jsonl --port 3030
+npm run dev -- serve --session rollout-2026-05-25 --port 3030
+```
+
+API endpoints:
+
+- `GET /` returns the browser UI.
+- `GET /api/session` returns session summary, pressure series, and timeline markers.
+- `GET /api/events?offset=0&limit=100` returns preview-only event list pages.
+- `GET /api/events/:line` returns full detail for one event line.
+
 ### Common options
 
 Analyze a specific file:
