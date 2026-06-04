@@ -6,9 +6,19 @@
 
 The project is being migrated from Python to TypeScript. Prefer TypeScript for new implementation work.
 
+## Repository-local skills
+
+Use repository-local skill documents when relevant. These files are the source of truth for agent workflows even when external skills are unavailable:
+
+- For implementation work, follow `docs/agent-skills/tdd.md`.
+- For design decision and domain language clarification, follow `docs/agent-skills/grill-with-docs.md`.
+
+When a prompt mentions `/tdd`, read and follow `docs/agent-skills/tdd.md`.
+When a prompt mentions `/grill-with-docs`, read and follow `docs/agent-skills/grill-with-docs.md`.
+
 ## Default workflow
 
-- Use the `/tdd` skill for implementation work.
+- Use the repository-local `/tdd` skill for implementation work.
 - Start by adding or updating tests that describe the intended behavior.
 - Implement the smallest change that makes the tests pass.
 - Keep parser behavior, report behavior, and CLI behavior separately testable.
@@ -51,7 +61,7 @@ If any command cannot be run, report that explicitly with the reason.
 
 When a new design decision is made, or when an implicit design decision becomes visible during work, consider whether it should be recorded as an ADR.
 
-ADRs follow the format from `ADR-FORMAT.md` in `mattpocock/skills`:
+ADRs follow `docs/agent-skills/grill-with-docs.md` and the ADR format from `mattpocock/skills`:
 
 - Store ADRs in `docs/adr/`.
 - Create `docs/adr/` lazily when the first ADR is needed.
@@ -79,7 +89,7 @@ Do not create ADRs for obvious, easily reversible, or purely mechanical choices.
 
 When a new domain term is introduced, or when an implicit domain term becomes visible during work, consider whether it should be recorded in project context documentation.
 
-Domain context follows the format from `CONTEXT-FORMAT.md` in `mattpocock/skills`:
+Domain context follows `docs/agent-skills/grill-with-docs.md` and the CONTEXT format from `mattpocock/skills`:
 
 - For this repository, use a root `CONTEXT.md` unless multiple bounded contexts emerge later.
 - Create `CONTEXT.md` lazily when the first project-specific term is resolved.
