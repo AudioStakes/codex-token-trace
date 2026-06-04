@@ -157,7 +157,7 @@ describe("serve command and server app", () => {
     expect(html).toContain("timestampRange");
     expect(html).toContain("Date.parse");
     expect(html).toContain("pointX(point, index)");
-    expect(html).toContain("xFor(item)");
+    expect(html).toContain("xFor = (item) =>");
     expect(html).toContain("value === null");
     expect(html).toContain("graphPointText(hit)");
   });
@@ -192,7 +192,11 @@ describe("serve command and server app", () => {
     expect(data.markers.map((marker) => marker.kind)).toContain("tool_usage_group");
     expect(data.timelineLaneEvents).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ lane: "user", kind: "user_message", preview: "Please inspect the synthetic project" }),
+        expect.objectContaining({
+          lane: "user",
+          kind: "user_message",
+          preview: "Please inspect the synthetic project",
+        }),
         expect.objectContaining({ lane: "status", kind: "assistant_message" }),
         expect.objectContaining({ lane: "status", kind: "reasoning" }),
         expect.objectContaining({ lane: "tool", kind: "tool_call" }),
