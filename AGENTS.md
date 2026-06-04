@@ -28,9 +28,9 @@ When a prompt mentions `/grill-with-docs`, read and follow `docs/agent-skills/gr
 
 Run focused automated tests while developing.
 
-Before completing work, run the repository auto-fix stage and include any resulting changes in the final diff.
+Before completing work, the Codex Stop hook runs the repository auto-fix stage. Include any resulting changes in the final diff.
 
-The final verification gate is enforced by repository hooks. A task is not complete unless the hook-managed verification succeeds. Do not bypass the hook, relax checks, or report completion after a failed verification.
+The final verification gate is enforced by the Codex Stop hook. A task is not complete unless the hook-managed verification succeeds. Do not bypass the hook, relax checks, or report completion after a failed verification.
 
 ## Formatting and linting
 

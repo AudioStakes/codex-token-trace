@@ -37,7 +37,10 @@ report.json
 reports/
 
 # Local Codex/session data - never commit real logs
-.codex/
+.codex/*
+!.codex/hooks.json
+!.codex/hooks/
+!.codex/hooks/stop_verify.sh
 sessions/
 *.jsonl
 !tests/fixtures/*.jsonl

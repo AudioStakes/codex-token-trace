@@ -199,6 +199,8 @@ npm run verify
 
 `npm run fix` applies automatic formatting/lint fixes. `npm run verify` runs the read-only verification gate used before completion.
 
+Project-local Codex hooks are configured under `.codex/hooks.json`. The Stop hook runs `npm run fix` followed by `npm run verify` before Codex completes a turn.
+
 ## Privacy
 
 This tool parses local Codex JSONL files. Those files may contain prompts, source code, command outputs, file paths, screenshots, image/tool payload metadata, and other sensitive data.
