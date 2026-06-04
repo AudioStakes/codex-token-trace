@@ -51,6 +51,7 @@ export type SessionView = Readonly<{
   }>;
   pressureSeries: PressurePoint[];
   markers: Marker[];
+  timelineLaneEvents: TimelineLaneEvent[];
 }>;
 
 export type PressurePoint = Readonly<{
@@ -66,6 +67,16 @@ export type PressurePoint = Readonly<{
   outputTokens: number;
   reasoningOutputTokens: number;
   contextWindow: number | null;
+}>;
+
+export type TimelineLaneEvent = Readonly<{
+  line: number;
+  timestamp: string | null;
+  lane: "user" | "status" | "tool" | "token" | "compaction";
+  kind: EventKind;
+  title: string;
+  preview: string;
+  rawChars: number;
 }>;
 
 export type Marker = Readonly<{
@@ -406,6 +417,32 @@ const pressureSeries = (analysis: SessionAnalysis): PressurePoint[] => {
 const topLevelCompactionCount = (analysis: SessionAnalysis): number =>
   analysis.events.filter((event) => event.topType === "compacted").length;
 
+const laneForEvent = (kind: EventKind): TimelineLaneEvent["lane"] | null => {
+  if (kind === "user_message") {
+    return "user";
+  }
+  if (kind === "assistant_message" || kind === "reasoning") {
+    return "status";
+  }
+  if (kind === "tool_call" || kind === "tool_output" || kind === "apply_patch") {
+    return "tool";
+  }
+  if (kind === "token_count") {
+    return "token";
+  }
+  if (kind === "compaction") {
+    return "compaction";
+  }
+  return null;
+};
+
+const timelineLaneEvents = (analysis: SessionAnalysis): TimelineLaneEvent[] =>
+  analysis.events.flatMap((event) => {
+    const item = eventListItem(event);
+    const lane = laneForEvent(item.kind);
+    return lane === null ? [] : [{ ...item, lane }];
+  });
+
 const markers = (analysis: SessionAnalysis): Marker[] => {
   const compactions = compactionImpacts(analysis, Number.MAX_SAFE_INTEGER).map((event) => ({
     line: event.line,
@@ -468,6 +505,7 @@ export const sessionView = (analysis: SessionAnalysis): SessionView => {
     },
     pressureSeries: pressureSeries(analysis),
     markers: markers(analysis),
+    timelineLaneEvents: timelineLaneEvents(analysis),
   };
 };
 

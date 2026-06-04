@@ -122,12 +122,31 @@ describe("serve command and server app", () => {
     expect(await response.text()).toContain("Session timeline explorer");
   });
 
-  it("renders marker kinds with separate legend labels and drawing logic", async () => {
+  it("renders summary card tooltips, legend tooltips, and graph axis labels", async () => {
     const response = await fixtureApp().request("/");
     expect(response.status).toBe(200);
     const html = await response.text();
+    expect(html).toContain(
+      "セッション全体で使った token の合計。会話、ファイル内容、コマンド結果、Codex の出力などを含む累積の使用量。",
+    );
+    expect(html).toContain(
+      "新しく処理された入力の大きさが、そのセッション内の最大値に対してどれくらい大きいか。",
+    );
+    for (const label of [
+      "total progress",
+      "context pressure",
+      "non-cached pressure",
+      "user message",
+      "Codex status",
+      "tool",
+      "token_count",
+    ]) {
+      expect(html).toContain(label);
+    }
+    expect(html).toContain("data-tip");
+    expect(html).toContain("X: time");
+    expect(html).toContain("Y: normalized pressure / progress (%)");
     expect(html).toContain("compaction</span>");
-    expect(html).toContain("tool usage group</span>");
     expect(html).toContain("large event</span>");
   });
 
@@ -138,8 +157,9 @@ describe("serve command and server app", () => {
     expect(html).toContain("timestampRange");
     expect(html).toContain("Date.parse");
     expect(html).toContain("pointX(point, index)");
-    expect(html).toContain("markerX(marker)");
+    expect(html).toContain("xFor(item)");
     expect(html).toContain("value === null");
+    expect(html).toContain("graphPointText(hit)");
   });
 
   it("returns session summary and normalized pressure series", async () => {
@@ -170,6 +190,21 @@ describe("serve command and server app", () => {
     );
     expect(data.markers.map((marker) => marker.kind)).toContain("compaction");
     expect(data.markers.map((marker) => marker.kind)).toContain("tool_usage_group");
+    expect(data.timelineLaneEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ lane: "user", kind: "user_message", preview: "Please inspect the synthetic project" }),
+        expect.objectContaining({ lane: "status", kind: "assistant_message" }),
+        expect.objectContaining({ lane: "status", kind: "reasoning" }),
+        expect.objectContaining({ lane: "tool", kind: "tool_call" }),
+        expect.objectContaining({ lane: "tool", kind: "tool_output" }),
+        expect.objectContaining({ lane: "tool", kind: "apply_patch" }),
+        expect.objectContaining({ lane: "token", kind: "token_count" }),
+      ]),
+    );
+    for (const laneEvent of data.timelineLaneEvents) {
+      expect(laneEvent).not.toHaveProperty("raw");
+      expect(laneEvent).not.toHaveProperty("extracted");
+    }
   });
 
   it("returns preview-only event list and classified event kinds", async () => {
@@ -209,6 +244,15 @@ describe("serve command and server app", () => {
     expect(data.limit).toBe(1);
     expect(data.events).toHaveLength(1);
     expect(data.events[0]?.line).toBe(1);
+  });
+
+  it("keeps detail loading hooks for event list rows and event lane clicks", async () => {
+    const response = await fixtureApp().request("/");
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("loadDetail(row.dataset.line)");
+    expect(html).toContain("loadDetail(hit.event.line)");
+    expect(html).toContain("eventText(hit.event)");
   });
 
   it("returns event detail with raw JSON and extracted exec_command cmd", async () => {
