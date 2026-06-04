@@ -237,17 +237,87 @@ const groupSummary = (group: ToolUsageGroup): string => {
 const compactedEvents = (analysis: SessionAnalysis): EventRecord[] =>
   analysis.events.filter((event) => event.topType === "compacted");
 
-const suggestedActions = (analysis: SessionAnalysis): string[] => {
-  const topTools = toolOutputGroups(analysis.tools)
+const commandName = (command: string): string => command.trim().split(/\s+/, 1)[0] ?? "";
+
+const isRgOrSedCommand = (tool: ToolCall): boolean =>
+  isExecCommand(tool) && ["rg", "sed"].includes(commandName(toolInputLabel(tool)));
+
+const generatedAssetPattern = /(?:^|[\s/'"])(?:dist|build|assets|public)(?:[\s/'"]|$)/i;
+
+const readsGeneratedAsset = (tool: ToolCall): boolean =>
+  isExecCommand(tool) && generatedAssetPattern.test(toolInputLabel(tool));
+
+const hasProminentToolOutput = (
+  analysis: SessionAnalysis,
+  predicate: (tool: ToolCall) => boolean,
+) => {
+  const totalOutputChars = toolOutputChars(analysis);
+  if (totalOutputChars <= 0) {
+    return false;
+  }
+  return analysis.tools
+    .filter((tool) => tool.outputChars > 0)
+    .sort((a, b) => b.outputChars - a.outputChars)
     .slice(0, 3)
-    .map((group) => group.tool);
-  const actions = ["Narrow broad rg/sed commands before reading large outputs."];
-  if (topTools.includes("view_image")) {
+    .some((tool) => predicate(tool) && tool.outputChars / totalOutputChars >= 0.25);
+};
+
+const topUsageGroups = (analysis: SessionAnalysis): ToolUsageGroup[] =>
+  toolUsageGroups(analysis.toolUsages)
+    .filter((group) => (group.nextNonCachedInputTokens ?? 0) > 0)
+    .slice(0, 3);
+
+const hasProminentUsageGroupTool = (
+  analysis: SessionAnalysis,
+  predicate: (tool: ToolCall) => boolean,
+): boolean => topUsageGroups(analysis).some((group) => group.topTools.some(predicate));
+
+const hasMultipleApplyPatchSpikes = (analysis: SessionAnalysis): boolean =>
+  topUsageGroups(analysis).filter((group) =>
+    group.topTools.some((tool) => toolDisplayName(tool) === "apply_patch"),
+  ).length >= 2;
+
+const suggestedActions = (analysis: SessionAnalysis): string[] => {
+  const actions: string[] = [];
+
+  if (hasProminentToolOutput(analysis, (tool) => toolDisplayName(tool) === "view_image")) {
     actions.push(
       "Use view_image intentionally; it is output-size heavy even when next_new_input is low.",
     );
   }
-  actions.push("Avoid repeated reads of generated dist/assets unless necessary.");
+
+  if (
+    hasProminentToolOutput(analysis, isRgOrSedCommand) ||
+    hasProminentUsageGroupTool(analysis, isRgOrSedCommand)
+  ) {
+    actions.push("Narrow broad rg/sed commands before reading large outputs.");
+  }
+
+  if (
+    hasProminentToolOutput(analysis, readsGeneratedAsset) ||
+    hasProminentUsageGroupTool(analysis, readsGeneratedAsset)
+  ) {
+    actions.push("Avoid repeated reads of generated assets unless necessary.");
+  }
+
+  if (hasMultipleApplyPatchSpikes(analysis)) {
+    actions.push(
+      "Review large patch intervals; patches can be associated with high non-cached input even when patch output is small.",
+    );
+  }
+
+  if (compactedEvents(analysis).length > 0) {
+    actions.push(
+      "Watch context pressure; compaction indicates the session reached a large context state.",
+    );
+  }
+
+  if (actions.length === 0) {
+    actions.push(
+      "Inspect the top tool usage groups and large events before optimizing prompts or commands.",
+    );
+  }
+
   return actions;
 };
 
@@ -305,9 +375,7 @@ export const diagnosisReport = (analysis: SessionAnalysis, limit: number): strin
     ...causes.slice(0, maxItems + 2).map((cause, index) => `${index + 1}. ${cause}`),
     "",
     "Suggested next actions:",
-    ...suggestedActions(analysis)
-      .slice(0, maxItems + 1)
-      .map((action) => `- ${action}`),
+    ...suggestedActions(analysis).map((action) => `- ${action}`),
   ].join("\n");
 };
 
