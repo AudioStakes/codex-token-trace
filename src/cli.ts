@@ -15,6 +15,7 @@ import {
   sessionsTable,
   timelineTable,
   toolOutputTable,
+  toolUsageTable,
 } from "./reports.js";
 
 type ParsedArgs = Readonly<{
@@ -35,6 +36,7 @@ Usage:
   codex-token-trace analyze [paths...] [--session text] [--limit n] [--min-chars n] [--json]
   codex-token-trace sessions [paths...] [--limit n] [--json]
   codex-token-trace tools [paths...] [--session text] [--limit n] [--exec-only]
+  codex-token-trace tool-usage [paths...] [--session text] [--limit n]
   codex-token-trace commands [paths...] [--session text] [--limit n] [--exec-only]
   codex-token-trace timeline [paths...] [--session text] [--limit n]
   codex-token-trace intervals [paths...] [--session text] [--limit n]
@@ -53,6 +55,7 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     "analyze",
     "sessions",
     "tools",
+    "tool-usage",
     "commands",
     "timeline",
     "intervals",
@@ -205,6 +208,9 @@ export const run = (argv: string[]): number => {
     } else {
       console.log(toolOutputTable(analysis.tools, args.limit, args.execOnly));
     }
+  } else if (args.command === "tool-usage") {
+    console.log("# Tool usage impact");
+    console.log(toolUsageTable(analysis.toolUsages, args.limit));
   } else if (args.command === "timeline") {
     console.log(timelineTable(analysis, args.limit));
   } else if (args.command === "intervals") {

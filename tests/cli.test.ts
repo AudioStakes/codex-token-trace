@@ -106,9 +106,38 @@ describe("cli", () => {
     expect(typeof parsed.session.events).toBe("number");
     expect(parsed.session).toHaveProperty("drivers");
     expect(parsed.session).toHaveProperty("heaviestTools");
+    expect(parsed.session).toHaveProperty("toolUsages");
     expect(parsed.session).toHaveProperty("intervals");
     expect(parsed.session).toHaveProperty("largeEvents");
     expect(parsed.session).toHaveProperty("compactions");
+  });
+
+  it("runs tool-usage against a synthetic fixture", () => {
+    const { code, output } = captureLog(() =>
+      run(["tool-usage", fixturePath("tool-usage-session.jsonl")]),
+    );
+    expect(code).toBe(0);
+    expect(output).toContain("# Tool usage impact");
+    expect(output).toContain("exec_command");
+    expect(output).toContain('rg -n "tts-check" dist');
+    expect(output).toContain("apply_patch");
+    expect(output).toContain("next_new_input");
+  });
+
+  it("emits and limits toolUsages in analyze JSON", () => {
+    const all = captureLog(() =>
+      run(["analyze", "--json", fixturePath("tool-usage-session.jsonl")]),
+    );
+    expect(all.code).toBe(0);
+    const fullSession = JSON.parse(all.output) as { session: { toolUsages: unknown[] } };
+    expect(fullSession.session.toolUsages.length).toBeGreaterThan(0);
+
+    const limited = captureLog(() =>
+      run(["analyze", "--json", "--limit", "1", fixturePath("tool-usage-session.jsonl")]),
+    );
+    expect(limited.code).toBe(0);
+    const limitedSession = JSON.parse(limited.output) as { session: { toolUsages: unknown[] } };
+    expect(limitedSession.session.toolUsages.length).toBeLessThanOrEqual(1);
   });
 
   it("runs tools exec-only without including view_image tools", () => {
@@ -207,6 +236,7 @@ describe("cli", () => {
         session: {
           largeEvents: unknown[];
           heaviestTools: unknown[];
+          toolUsages: unknown[];
           intervals: unknown[];
           compactions: unknown[];
         };
@@ -214,6 +244,7 @@ describe("cli", () => {
     ).session;
     expect(session.largeEvents).toHaveLength(1);
     expect(session.heaviestTools).toHaveLength(1);
+    expect(session.toolUsages).toHaveLength(1);
     expect(session.intervals).toHaveLength(1);
     expect(session.compactions).toHaveLength(1);
   });

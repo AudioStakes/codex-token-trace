@@ -17,6 +17,7 @@ import {
   type SessionAnalysis,
   type TokenEvent,
   type ToolCall,
+  type ToolUsage,
   toolDisplayName,
   toolInputLabel,
   toolOutputChars,
@@ -236,6 +237,38 @@ const toolRows = (
 export const toolOutputTable = (tools: ToolCall[], limit: number, onlyExec = false): string =>
   table(["output_chars", "events", "tool", "input_preview"], toolRows(tools, limit, onlyExec));
 
+const toolUsageRows = (toolUsages: ToolUsage[], limit: number): Array<Array<string | number>> =>
+  [...toolUsages]
+    .sort((a, b) => b.outputChars - a.outputChars)
+    .slice(0, limit)
+    .map((usage) => [
+      formatInt(usage.outputChars),
+      toolDisplayName(usage),
+      usage.startLine ?? usage.endLine ?? "-",
+      usage.startTime ?? usage.endTime ?? "-",
+      formatInt(usage.nextNonCachedInputTokens),
+      formatInt(usage.nextInputTokens),
+      formatInt(usage.nextCachedInputTokens),
+      formatInt(usage.nextTotalTokens),
+      shorten(toolInputLabel(usage), 100),
+    ]);
+
+export const toolUsageTable = (toolUsages: ToolUsage[], limit: number): string =>
+  table(
+    [
+      "output_chars",
+      "tool",
+      "line",
+      "time",
+      "next_new_input",
+      "next_input",
+      "next_cached",
+      "next_total",
+      "input_preview",
+    ],
+    toolUsageRows(toolUsages, limit),
+  );
+
 export const aggregateToolOutputTable = (
   analyses: SessionAnalysis[],
   limit: number,
@@ -366,6 +399,26 @@ export const sessionsTable = (analyses: SessionAnalysis[], limit: number): strin
       ]),
   );
 
+const toolUsageToJson = (usage: ToolUsage): Record<string, unknown> => ({
+  callId: usage.callId,
+  tool: toolDisplayName(usage),
+  inputPreview: toolInputLabel(usage),
+  inputChars: usage.inputChars,
+  outputChars: usage.outputChars,
+  outputEvents: usage.outputEvents,
+  startLine: usage.startLine,
+  startTime: usage.startTime,
+  endLine: usage.endLine,
+  endTime: usage.endTime,
+  nextTokenLine: usage.nextTokenLine,
+  nextTokenTime: usage.nextTokenTime,
+  nextInputTokens: usage.nextInputTokens,
+  nextCachedInputTokens: usage.nextCachedInputTokens,
+  nextNonCachedInputTokens: usage.nextNonCachedInputTokens,
+  nextOutputTokens: usage.nextOutputTokens,
+  nextTotalTokens: usage.nextTotalTokens,
+});
+
 export const sessionToJson = (
   analysis: SessionAnalysis,
   options: JsonReportOptions = {},
@@ -398,6 +451,7 @@ export const sessionToJson = (
       beforeLine: event.before?.lineNo ?? null,
       afterLine: event.after?.lineNo ?? null,
     })),
+    toolUsages: analysis.toolUsages.slice(0, resolved.limit).map(toolUsageToJson),
     heaviestTools: analysis.tools
       .filter((tool) => tool.outputChars > 0)
       .sort((a, b) => b.outputChars - a.outputChars)
