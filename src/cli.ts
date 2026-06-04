@@ -175,7 +175,12 @@ export const run = (argv: string[]): number => {
   const analyses = loadAnalyses(args.paths);
   if (args.command === "sessions") {
     if (args.json) {
-      console.log(analysesToJson(analyses));
+      console.log(
+        analysesToJson(analyses, undefined, {
+          limit: args.limit,
+          largeEventMinChars: args.minChars,
+        }),
+      );
     } else {
       console.log(sessionsTable(analyses, args.limit));
     }
@@ -185,12 +190,17 @@ export const run = (argv: string[]): number => {
   const analysis = pickSession(analyses, args.session);
   if (args.command === "analyze") {
     if (args.json) {
-      console.log(analysesToJson(analyses, analysis));
+      console.log(
+        analysesToJson(analyses, analysis, {
+          limit: args.limit,
+          largeEventMinChars: args.minChars,
+        }),
+      );
     } else {
       printAnalyze(analysis, args);
     }
   } else if (args.command === "tools" || args.command === "commands") {
-    if (args.session === null && args.paths.length !== 1) {
+    if (args.session === null) {
       console.log(aggregateToolOutputTable(analyses, args.limit, args.execOnly));
     } else {
       console.log(toolOutputTable(analysis.tools, args.limit, args.execOnly));

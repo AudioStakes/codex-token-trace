@@ -47,6 +47,21 @@ type CompactionImpact = Readonly<{
   after: TokenEvent | null;
 }>;
 
+export type JsonReportOptions = Readonly<{
+  largeEventMinChars?: number;
+  limit?: number;
+}>;
+
+const defaultJsonReportOptions = {
+  largeEventMinChars: 10_000,
+  limit: 50,
+} as const;
+
+const jsonReportOptions = (options: JsonReportOptions = {}): Required<JsonReportOptions> => ({
+  largeEventMinChars: options.largeEventMinChars ?? defaultJsonReportOptions.largeEventMinChars,
+  limit: options.limit ?? defaultJsonReportOptions.limit,
+});
+
 const eventTypeTotals = (analysis: SessionAnalysis): EventTypeTotal[] => {
   const totals = new Map<string, { rawChars: number; events: number; maxChars: number }>();
   for (const event of analysis.events) {
@@ -351,67 +366,77 @@ export const sessionsTable = (analyses: SessionAnalysis[], limit: number): strin
       ]),
   );
 
-export const sessionToJson = (analysis: SessionAnalysis): Record<string, unknown> => ({
-  sessionId: analysis.sessionId,
-  path: analysis.path,
-  events: analysis.events.length,
-  tokenEvents: analysis.uniqueTokenEvents.length,
-  rawTokenEvents: analysis.tokenEvents.length,
-  finalTotal: finalTotal(analysis),
-  maxInputTokens: maxInputTokens(analysis),
-  maxNonCachedInputTokens: maxNonCachedInputTokens(analysis),
-  maxContextRatio: maxContextRatio(analysis),
-  sessionMeta: {
-    charsTotal: analysis.sessionMetaCharsTotal,
-    charsMax: analysis.sessionMetaCharsMax,
-    count: analysis.sessionMetaCount,
-  },
-  toolOutputChars: toolOutputChars(analysis),
-  execCommandOutputChars: execCommandOutputChars(analysis),
-  drivers: eventTypeTotals(analysis),
-  largeEvents: largeEvents(analysis, 10_000, 50),
-  compactions: compactionImpacts(analysis, 50).map((event) => ({
-    line: event.line,
-    timestamp: event.timestamp,
-    rawChars: event.rawChars,
-    eventType: event.eventType,
-    beforeLine: event.before?.lineNo ?? null,
-    afterLine: event.after?.lineNo ?? null,
-  })),
-  heaviestTools: analysis.tools
-    .filter((tool) => tool.outputChars > 0)
-    .sort((a, b) => b.outputChars - a.outputChars)
-    .slice(0, 50)
-    .map((tool) => ({
-      tool: toolDisplayName(tool),
-      inputPreview: toolInputLabel(tool),
-      outputChars: tool.outputChars,
-      outputEvents: tool.outputEvents,
-      timestamp: tool.timestamp,
+export const sessionToJson = (
+  analysis: SessionAnalysis,
+  options: JsonReportOptions = {},
+): Record<string, unknown> => {
+  const resolved = jsonReportOptions(options);
+  return {
+    sessionId: analysis.sessionId,
+    path: analysis.path,
+    events: analysis.events.length,
+    tokenEvents: analysis.uniqueTokenEvents.length,
+    rawTokenEvents: analysis.tokenEvents.length,
+    finalTotal: finalTotal(analysis),
+    maxInputTokens: maxInputTokens(analysis),
+    maxNonCachedInputTokens: maxNonCachedInputTokens(analysis),
+    maxContextRatio: maxContextRatio(analysis),
+    sessionMeta: {
+      charsTotal: analysis.sessionMetaCharsTotal,
+      charsMax: analysis.sessionMetaCharsMax,
+      count: analysis.sessionMetaCount,
+    },
+    toolOutputChars: toolOutputChars(analysis),
+    execCommandOutputChars: execCommandOutputChars(analysis),
+    drivers: eventTypeTotals(analysis),
+    largeEvents: largeEvents(analysis, resolved.largeEventMinChars, resolved.limit),
+    compactions: compactionImpacts(analysis, resolved.limit).map((event) => ({
+      line: event.line,
+      timestamp: event.timestamp,
+      rawChars: event.rawChars,
+      eventType: event.eventType,
+      beforeLine: event.before?.lineNo ?? null,
+      afterLine: event.after?.lineNo ?? null,
     })),
-  intervals: [...analysis.intervals]
-    .sort(
-      (a, b) => nonCachedInputTokens(b.tokenEvent.last) - nonCachedInputTokens(a.tokenEvent.last),
-    )
-    .slice(0, 50)
-    .map((interval) => ({
-      line: interval.tokenEvent.lineNo,
-      timestamp: interval.tokenEvent.timestamp,
-      newInput: nonCachedInputTokens(interval.tokenEvent.last),
-      input: interval.tokenEvent.last.inputTokens,
-      cached: interval.tokenEvent.last.cachedInputTokens,
-      toolOutputChars: intervalToolOutputChars(interval),
-      execCommandOutputChars: intervalExecCommandOutputChars(interval),
-      eventCount: interval.eventCount,
-      topEventTypes: topIntervalEventTypes(interval, 5),
-      topTool: interval.tools[0] ? toolDisplayName(interval.tools[0]) : null,
-      topToolInputPreview: interval.tools[0] ? toolInputLabel(interval.tools[0]) : null,
-    })),
-});
+    heaviestTools: analysis.tools
+      .filter((tool) => tool.outputChars > 0)
+      .sort((a, b) => b.outputChars - a.outputChars)
+      .slice(0, resolved.limit)
+      .map((tool) => ({
+        tool: toolDisplayName(tool),
+        inputPreview: toolInputLabel(tool),
+        outputChars: tool.outputChars,
+        outputEvents: tool.outputEvents,
+        timestamp: tool.timestamp,
+      })),
+    intervals: [...analysis.intervals]
+      .sort(
+        (a, b) => nonCachedInputTokens(b.tokenEvent.last) - nonCachedInputTokens(a.tokenEvent.last),
+      )
+      .slice(0, resolved.limit)
+      .map((interval) => ({
+        line: interval.tokenEvent.lineNo,
+        timestamp: interval.tokenEvent.timestamp,
+        newInput: nonCachedInputTokens(interval.tokenEvent.last),
+        input: interval.tokenEvent.last.inputTokens,
+        cached: interval.tokenEvent.last.cachedInputTokens,
+        toolOutputChars: intervalToolOutputChars(interval),
+        execCommandOutputChars: intervalExecCommandOutputChars(interval),
+        eventCount: interval.eventCount,
+        topEventTypes: topIntervalEventTypes(interval, 5),
+        topTool: interval.tools[0] ? toolDisplayName(interval.tools[0]) : null,
+        topToolInputPreview: interval.tools[0] ? toolInputLabel(interval.tools[0]) : null,
+      })),
+  };
+};
 
-export const analysesToJson = (analyses: SessionAnalysis[], session?: SessionAnalysis): string => {
+export const analysesToJson = (
+  analyses: SessionAnalysis[],
+  session?: SessionAnalysis,
+  options: JsonReportOptions = {},
+): string => {
   const payload = session
-    ? { session: sessionToJson(session) }
-    : { sessions: analyses.map((analysis) => sessionToJson(analysis)) };
+    ? { session: sessionToJson(session, options) }
+    : { sessions: analyses.map((analysis) => sessionToJson(analysis, options)) };
   return JSON.stringify(payload, null, 2);
 };

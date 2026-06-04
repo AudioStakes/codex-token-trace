@@ -6,6 +6,37 @@ import { run } from "../src/cli.js";
 
 const fixturePath = (name: string): string => join(process.cwd(), "tests", "fixtures", name);
 
+const tokenRow = (totalTokens: number, timestamp: string) => ({
+  timestamp,
+  type: "event_msg",
+  payload: {
+    type: "token_count",
+    info: {
+      total_token_usage: {
+        input_tokens: totalTokens,
+        cached_input_tokens: 0,
+        output_tokens: 0,
+        reasoning_output_tokens: 0,
+        total_tokens: totalTokens,
+      },
+      last_token_usage: {
+        input_tokens: totalTokens,
+        cached_input_tokens: 0,
+        output_tokens: 0,
+        reasoning_output_tokens: 0,
+        total_tokens: totalTokens,
+      },
+      model_context_window: 1000,
+    },
+  },
+});
+
+const writeJsonl = (dir: string, name: string, rows: Array<Record<string, unknown>>): string => {
+  const path = join(dir, name);
+  writeFileSync(path, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`, "utf8");
+  return path;
+};
+
 const writeFixture = (): string => {
   const dir = mkdtempSync(join(tmpdir(), "ctt-cli-"));
   const path = join(dir, "session.jsonl");
@@ -95,5 +126,145 @@ describe("cli", () => {
     );
     expect(code).toBe(0);
     expect(output).toContain("raw_chars");
+  });
+
+  it("applies analyze json min-chars and limit options to list sections", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ctt-cli-json-options-"));
+    const path = writeJsonl(dir, "json-options.jsonl", [
+      {
+        timestamp: "large-1",
+        type: "event_msg",
+        payload: { type: "user_message", message: "u".repeat(20_000) },
+      },
+      {
+        timestamp: "large-2",
+        type: "response_item",
+        payload: { type: "message", content: "m".repeat(15_000) },
+      },
+      {
+        timestamp: "tool-1",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "call_1",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "cmd one" }),
+        },
+      },
+      {
+        timestamp: "tool-1-out",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "call_1", output: "x".repeat(100) },
+      },
+      {
+        timestamp: "tool-2",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "call_2",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "cmd two" }),
+        },
+      },
+      {
+        timestamp: "tool-2-out",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "call_2", output: "y".repeat(90) },
+      },
+      { timestamp: "compact-1", type: "compacted", items: ["a".repeat(100)] },
+      { timestamp: "compact-2", type: "event_msg", payload: { type: "context_compacted" } },
+      tokenRow(100, "token-1"),
+      {
+        timestamp: "between",
+        type: "event_msg",
+        payload: { type: "user_message", message: "between" },
+      },
+      tokenRow(200, "token-2"),
+    ]);
+
+    const defaultThreshold = captureLog(() =>
+      run(["analyze", "--json", fixturePath("large-events-session.jsonl")]),
+    );
+    expect(defaultThreshold.code).toBe(0);
+    expect(
+      (JSON.parse(defaultThreshold.output) as { session: { largeEvents: unknown[] } }).session
+        .largeEvents.length,
+    ).toBeGreaterThan(0);
+
+    const highThreshold = captureLog(() =>
+      run(["analyze", "--json", "--min-chars", "50000", fixturePath("large-events-session.jsonl")]),
+    );
+    expect(highThreshold.code).toBe(0);
+    expect(
+      (JSON.parse(highThreshold.output) as { session: { largeEvents: unknown[] } }).session
+        .largeEvents,
+    ).toHaveLength(0);
+
+    const limited = captureLog(() => run(["analyze", "--json", "--limit", "1", path]));
+    expect(limited.code).toBe(0);
+    const session = (
+      JSON.parse(limited.output) as {
+        session: {
+          largeEvents: unknown[];
+          heaviestTools: unknown[];
+          intervals: unknown[];
+          compactions: unknown[];
+        };
+      }
+    ).session;
+    expect(session.largeEvents).toHaveLength(1);
+    expect(session.heaviestTools).toHaveLength(1);
+    expect(session.intervals).toHaveLength(1);
+    expect(session.compactions).toHaveLength(1);
+  });
+
+  it("aggregates tools for directory paths unless a session is selected", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ctt-cli-tools-dir-"));
+    writeJsonl(dir, "alpha-session.jsonl", [
+      {
+        timestamp: "alpha-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "alpha_call",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "alpha command" }),
+        },
+      },
+      {
+        timestamp: "alpha-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "alpha_call", output: "a".repeat(120) },
+      },
+      tokenRow(100, "alpha-token"),
+    ]);
+    writeJsonl(dir, "beta-session.jsonl", [
+      {
+        timestamp: "beta-call",
+        type: "response_item",
+        payload: {
+          type: "function_call",
+          call_id: "beta_call",
+          name: "exec_command",
+          arguments: JSON.stringify({ cmd: "beta command" }),
+        },
+      },
+      {
+        timestamp: "beta-output",
+        type: "response_item",
+        payload: { type: "function_call_output", call_id: "beta_call", output: "b".repeat(80) },
+      },
+      tokenRow(200, "beta-token"),
+    ]);
+
+    const aggregate = captureLog(() => run(["tools", dir]));
+    expect(aggregate.code).toBe(0);
+    expect(aggregate.output).toContain("alpha command");
+    expect(aggregate.output).toContain("beta command");
+
+    const selected = captureLog(() => run(["tools", "--session", "alpha", dir]));
+    expect(selected.code).toBe(0);
+    expect(selected.output).toContain("alpha command");
+    expect(selected.output).not.toContain("beta command");
   });
 });
