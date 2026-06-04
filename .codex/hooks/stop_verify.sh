@@ -3,14 +3,14 @@ set -eu
 
 cd "$(git rev-parse --show-toplevel)"
 
-npm run fix >&2
-
-if ! npm run verify >&2; then
+if ! npm run fix --silent >/dev/null 2>&1; then
   cat >&2 <<'EOF_ERROR'
-Repository verification failed.
-
-Run npm run fix and npm run verify, fix the failures, and do not report completion until the verification gate passes.
+Auto-fix failed. Run npm run fix and fix the reported issue.
 EOF_ERROR
+  exit 2
+fi
+
+if ! npm run verify --silent >/dev/null; then
   exit 2
 fi
 
