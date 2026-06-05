@@ -14,15 +14,14 @@ const retrospectivePromptPath = join(
   "stop_retrospective.txt",
 );
 
-const runStopGate = (
-  input: unknown,
-  options: {
-    npmMode?: "success" | "verify-fail" | "fix-fail";
-    npmLogPath?: string;
-    xdgCacheHome?: string;
-    cwd?: string;
-  } = {},
-) => {
+type RunOptions = {
+  npmMode?: "success" | "verify-fail" | "fix-fail";
+  npmLogPath?: string;
+  xdgCacheHome?: string;
+  cwd?: string;
+};
+
+const runStopGate = (input: unknown, options: RunOptions = {}) => {
   const tempDir = mkdtempSync(join(tmpdir(), "ctt-stop-gate-"));
   const binDir = join(tempDir, "bin");
   const npmStub = join(binDir, "npm");
@@ -32,38 +31,47 @@ const runStopGate = (
   const hugeLine = "x".repeat(2000);
 
   mkdirSync(binDir, { recursive: true });
-
   writeFileSync(
     npmStub,
     `#!/bin/sh
 set -eu
-printf '%s\n' "npm $*" >> "${npmLogPath}"
+printf '%s\n' "$*" >> "${npmLogPath}"
 mode="${npmMode}"
 if [ "$1" = "run" ] && [ "$2" = "fix" ]; then
   case "$mode" in
-    success) exit 0 ;;
+    success)
+      exit 0
+      ;;
     fix-fail)
-      printf '%s\n' "Auto-fix failed: lint check" >&2
+      printf '%s\n' "Auto-fix failed: ${hugeLine}" >&2
       exit 1
+      ;;
+    verify-fail)
+      exit 0
       ;;
   esac
 fi
 if [ "$1" = "run" ] && [ "$2" = "verify" ]; then
   case "$mode" in
-    success) exit 0 ;;
+    success)
+      exit 0
+      ;;
     verify-fail)
       printf '%s\n' "Verification failed: 1 check(s) failed." >&2
       printf '%s\n' "[verify] npm run verify" >&2
       printf '%s\n' "exit: 1" >&2
-      printf '%s\n' "Fix the failures above and rerun npm run verify." >&2
-      printf '%s\n' "${hugeLine}" >&2
+      printf '%s\n' "Fix the failures above and rerun the verification gate." >&2
       exit 1
+      ;;
+    fix-fail)
+      exit 0
       ;;
   esac
 fi
-exit 0
+printf '%s\n' "unexpected npm call: $*" >&2
+exit 1
 `,
-    "utf8",
+    { encoding: "utf8" },
   );
   chmodSync(npmStub, 0o755);
 
@@ -91,7 +99,11 @@ const parseJson = (text: string): Record<string, unknown> => JSON.parse(text);
 
 describe("stop gate", () => {
   it("blocks with the retrospective prompt after successful fix and verify", () => {
-    const result = runStopGate({ session_id: "session-a", turn_id: "turn-1", cwd: repoRoot });
+    const result = runStopGate({
+      session_id: "session-a",
+      turn_id: "turn-1",
+      cwd: repoRoot,
+    });
     const output = parseJson(result.stdout);
     const statePath = join(result.cacheHome, "codex-stop-gate", "state.json");
     const state = parseJson(readFileSync(statePath, "utf8"));
@@ -104,16 +116,29 @@ describe("stop gate", () => {
     expect(state).toHaveProperty("entries");
     expect(JSON.stringify(state)).toContain("session-a");
     expect(readFileSync(result.npmLogPath, "utf8").trim().split("\n")).toEqual([
-      "npm run fix --silent",
-      "npm run verify --silent",
+      "run fix --silent",
+      "run verify --silent",
     ]);
   });
 
-  it("approves the same turn after the retrospective request has already been made", () => {
-    const first = runStopGate({ session_id: "session-b", turn_id: "turn-2", cwd: repoRoot });
+  it("keeps the same turn key stable when other payload fields change", () => {
+    const first = runStopGate({
+      session_id: "session-stable",
+      turn_id: "turn-stable",
+      cwd: repoRoot,
+      message: "first payload",
+    });
     const second = runStopGate(
-      { session_id: "session-b", turn_id: "turn-2", cwd: repoRoot },
-      { xdgCacheHome: first.cacheHome, npmLogPath: first.npmLogPath },
+      {
+        session_id: "session-stable",
+        turn_id: "turn-stable",
+        cwd: repoRoot,
+        message: "second payload",
+      },
+      {
+        xdgCacheHome: first.cacheHome,
+        npmLogPath: first.npmLogPath,
+      },
     );
 
     expect(parseJson(first.stdout)).toEqual({
@@ -121,16 +146,69 @@ describe("stop gate", () => {
       reason: readFileSync(retrospectivePromptPath, "utf8"),
     });
     expect(parseJson(second.stdout)).toEqual({ decision: "approve" });
-    expect(readFileSync(first.npmLogPath, "utf8").trim().split("\n")).toEqual([
-      "npm run fix --silent",
-      "npm run verify --silent",
-    ]);
+  });
+
+  it("approves the same turn after the retrospective request has already been made", () => {
+    const first = runStopGate({
+      session_id: "session-b",
+      turn_id: "turn-2",
+      cwd: repoRoot,
+    });
+    const second = runStopGate(
+      {
+        session_id: "session-b",
+        turn_id: "turn-2",
+        cwd: repoRoot,
+      },
+      {
+        xdgCacheHome: first.cacheHome,
+        npmLogPath: first.npmLogPath,
+      },
+    );
+
+    expect(first.code).toBe(0);
+    expect(second.code).toBe(0);
+    expect(parseJson(first.stdout)).toEqual({
+      decision: "block",
+      reason: readFileSync(retrospectivePromptPath, "utf8"),
+    });
+    expect(parseJson(second.stdout)).toEqual({ decision: "approve" });
+  });
+
+  it("approves retrospective responses that start with the retrospective heading", () => {
+    const result = runStopGate({
+      session_id: "session-d",
+      turn_id: "turn-4",
+      cwd: repoRoot,
+      message: "## Retrospective\n- None.",
+    });
+
+    expect(result.code).toBe(0);
+    expect(parseJson(result.stdout)).toEqual({ decision: "approve" });
+  });
+
+  it("approves retrospective responses that include numbered items", () => {
+    const result = runStopGate({
+      session_id: "session-e",
+      turn_id: "turn-5",
+      cwd: repoRoot,
+      message: "## Retrospective\n\n1. Missing/ambiguous context",
+    });
+
+    expect(result.code).toBe(0);
+    expect(parseJson(result.stdout)).toEqual({ decision: "approve" });
   });
 
   it("returns a concise verification failure reason", () => {
     const result = runStopGate(
-      { session_id: "session-c", turn_id: "turn-3", cwd: repoRoot },
-      { npmMode: "verify-fail" },
+      {
+        session_id: "session-c",
+        turn_id: "turn-3",
+        cwd: repoRoot,
+      },
+      {
+        npmMode: "verify-fail",
+      },
     );
     const output = parseJson(result.stdout);
     const reason = String(output.reason ?? "");

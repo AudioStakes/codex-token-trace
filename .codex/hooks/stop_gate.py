@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -48,13 +47,6 @@ def _repo_root() -> Path:
         return Path.cwd()
 
 
-def _stable_json(value: Any) -> str:
-    try:
-        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    except TypeError:
-        return json.dumps(str(value), separators=(",", ":"), ensure_ascii=False)
-
-
 def _input_strings(value: Any) -> list[str]:
     strings: list[str] = []
     if isinstance(value, dict):
@@ -78,16 +70,11 @@ def _effective_cwd(payload: dict[str, Any], repo_root: Path) -> str:
 
 def _turn_key(payload: dict[str, Any], repo_root: Path) -> str:
     cwd = _effective_cwd(payload, repo_root)
-    session_id = payload.get("session_id") or payload.get("sessionId") or ""
-    turn_id = payload.get("turn_id") or payload.get("turnId") or ""
-    base = {
-        "cwd": cwd,
-        "session_id": session_id,
-        "turn_id": turn_id,
-        "payload": payload,
-    }
-    digest = hashlib.sha256(_stable_json(base).encode("utf-8")).hexdigest()
-    return f"{cwd}\0{session_id}\0{turn_id}\0{digest}"
+    session_id = str(payload.get("session_id") or payload.get("sessionId") or "")
+    turn_id = str(payload.get("turn_id") or payload.get("turnId") or "")
+    if session_id or turn_id:
+        return f"{cwd}\0{session_id}\0{turn_id}"
+    return f"{cwd}\0no-session\0no-turn"
 
 
 def _cache_path() -> Path:
@@ -152,11 +139,13 @@ def _summarize_failure(result: subprocess.CompletedProcess[str] | None, label: s
 def _is_retrospective_response(payload: dict[str, Any]) -> bool:
     for text in _input_strings(payload):
         stripped = text.strip()
+        if stripped == "## Retrospective":
+            return True
+        if stripped.startswith("## Retrospective\n"):
+            return True
         if stripped == "Retrospective":
             return True
         if stripped.startswith("Retrospective\n") or stripped.endswith("\nRetrospective"):
-            return True
-        if stripped == "Output only Retrospective. Do not repeat/revise/summarize the main answer.":
             return True
     return False
 
@@ -170,15 +159,16 @@ def main() -> int:
     payload = _read_stdin_json()
     repo_root = _repo_root()
     key = _turn_key(payload, repo_root)
+
+    if _is_retrospective_response(payload):
+        _write_json({"decision": "approve"})
+        return 0
+
     state_path = _cache_path()
     state = _load_state(state_path)
     entries = state.setdefault("entries", {})
 
     if entries.get(key, {}).get("retrospective_requested"):
-        _write_json({"decision": "approve"})
-        return 0
-
-    if _is_retrospective_response(payload):
         _write_json({"decision": "approve"})
         return 0
 
