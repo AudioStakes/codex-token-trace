@@ -29,6 +29,7 @@ describe("server UI helpers", () => {
   it("renders overview body markup", () => {
     const html = overviewBodyMarkup();
     expect(html).toContain('id="chart-spacer"');
+    expect(html).toContain('id="chart-error"');
     expect(html).toContain('id="ranking-body"');
     expect(html).toContain('id="tooltip"');
     expect(html).toContain('type="range"');

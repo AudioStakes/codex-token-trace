@@ -39,6 +39,7 @@ export const overviewBodyMarkup = (): string => `
         <canvas id="chart" class="chart" aria-label="Multi-session chart"></canvas>
         <div id="chart-spacer" class="chart-spacer" aria-hidden="true"></div>
       </div>
+      <div id="chart-error" class="chart-error" hidden></div>
       <div class="chart-footer">
         <div class="legend" aria-label="Chart legend">
           <span class="legend-item"><span class="swatch swatch-input"></span>non-cached input ${help(overviewTooltips.nonCachedInput)}</span>

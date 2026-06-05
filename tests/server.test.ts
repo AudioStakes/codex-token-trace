@@ -242,6 +242,7 @@ describe("serve command and server app", () => {
     expect(html).toContain("chart-footer");
     expect(html).toContain("<style>");
     expect(html).toContain('id="chart-spacer"');
+    expect(html).toContain('id="chart-error"');
     expect(html).toContain('id="ranking-body"');
     expect(html).toContain('id="tooltip"');
     expect(html).toContain('type="range"');
@@ -268,6 +269,8 @@ describe("serve command and server app", () => {
     assertScriptParses(script);
     assertScriptParses(overviewClientScript());
     expect(script).toContain("chartSpacer.style.width = chartWidth + 'px';");
+    expect(script).toContain("const parseTime = (timestamp) =>");
+    expect(script).toContain("Failed to render chart:");
     expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
     expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");
     expect(script).toContain("scrollArea.addEventListener('scroll', scheduleRenderChart);");

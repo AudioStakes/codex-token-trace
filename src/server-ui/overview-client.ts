@@ -1,6 +1,7 @@
 export const overviewClientScript = (): string => String.raw`
 const tooltip = document.getElementById('tooltip');
 const chart = document.getElementById('chart');
+const chartError = document.getElementById('chart-error');
 const scrollArea = document.getElementById('chart-scroll');
 const scaleInput = document.getElementById('scale');
 const scaleValue = document.getElementById('scale-value');
@@ -44,6 +45,15 @@ const fmtTime = (timestamp) => {
   const hour = parts.find((part) => part.type === 'hour')?.value ?? '??';
   const minute = parts.find((part) => part.type === 'minute')?.value ?? '00';
   return month + '/' + day + ' ' + hour + ':' + minute;
+};
+
+const parseTime = (timestamp) => {
+  if (timestamp === null || timestamp === undefined) {
+    return null;
+  }
+
+  const value = Date.parse(timestamp);
+  return Number.isFinite(value) ? value : null;
 };
 
 const esc = (value) => String(value).replace(/[&<>"']/g, (match) => {
@@ -92,6 +102,25 @@ const showTooltip = (text, event) => {
 
 const hideTooltip = () => {
   tooltip.hidden = true;
+};
+
+const showChartError = (error) => {
+  if (!chartError) {
+    return;
+  }
+
+  chartError.hidden = false;
+  chartError.textContent =
+    'Failed to render chart: ' + (error instanceof Error ? error.message : String(error));
+};
+
+const clearChartError = () => {
+  if (!chartError) {
+    return;
+  }
+
+  chartError.hidden = true;
+  chartError.textContent = '';
 };
 
 const getRows = () => Array.from(rankingBody.querySelectorAll('tr[data-session-id]'));
@@ -493,9 +522,11 @@ let pendingRenderFrame = null;
 
 const safeRenderChart = () => {
   try {
+    clearChartError();
     renderChart();
   } catch (error) {
     console.error(error);
+    showChartError(error);
   }
 };
 
@@ -571,6 +602,7 @@ const loadOverview = async () => {
 };
 
 loadOverview().catch((error) => {
+  console.error(error);
   rankingBody.innerHTML = '<tr><td colspan="13" class="detail-empty">Failed to load overview: ' + esc(error.message) + '</td></tr>';
 });
 `;
