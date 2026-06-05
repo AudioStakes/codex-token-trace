@@ -912,34 +912,46 @@ export const overviewHtml = (): string => `
 
       const renderRankingTable = () => {
         rankingBody.innerHTML = '';
-        for (const session of state.data.sessions) {
+        const ranked = [...state.data.sessions].sort(
+          (a, b) => (b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0),
+        );
+        for (const session of ranked) {
           rankingBody.appendChild(buildRankingRow(session));
         }
       };
 
-      const drawAxes = (ctx, width, height, leftPad, rightPad, plotHeight, maxTokens, maxEvents) => {
+      const drawAxes = (ctx, width, height, leftPad, rightPad, plotHeight, maxTokens, maxEvents, domainStart, domainEnd, tickHours) => {
+        const formatTickLabel = (timestamp) => {
+          const date = new Date(timestamp);
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hour = String(date.getHours()).padStart(2, '0');
+          return month + '/' + day + ' ' + hour + ':00';
+        };
+        const domainWidth = Math.max(1, domainEnd - domainStart);
+        const tickMs = tickHours * 3_600_000;
+        const firstTick = Math.ceil(domainStart / tickMs) * tickMs;
+
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.18)';
         ctx.fillStyle = '#94a3b8';
         ctx.font = '12px ui-sans-serif, system-ui';
         ctx.lineWidth = 1;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
         ctx.beginPath();
         ctx.moveTo(leftPad, 18);
         ctx.lineTo(leftPad, plotHeight);
         ctx.lineTo(width - rightPad, plotHeight);
         ctx.stroke();
-        for (let i = 0; i <= 4; i++) {
-          const value = (maxTokens * i) / 4;
-          const y = plotHeight - (plotHeight * i) / 4;
+
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+        for (let time = firstTick; time <= domainEnd; time += tickMs) {
+          const x = leftPad + ((time - domainStart) / domainWidth) * (width - leftPad - rightPad);
           ctx.beginPath();
-          ctx.moveTo(leftPad - 4, y);
-          ctx.lineTo(width - rightPad, y);
+          ctx.moveTo(x, 18);
+          ctx.lineTo(x, plotHeight);
           ctx.stroke();
-          ctx.fillText(fmtInt(Math.round(value)), 8, y + 4);
-        }
-        for (let i = 0; i <= 4; i++) {
-          const value = (maxEvents * i) / 4;
-          const y = plotHeight - (plotHeight * i) / 4;
-          ctx.fillText(fmtInt(Math.round(value)), width - rightPad + 6, y + 4);
+          ctx.fillText(formatTickLabel(time), x, plotHeight + 8);
         }
       };
 
@@ -951,7 +963,12 @@ export const overviewHtml = (): string => `
         const maxEvents = Math.max(1, ...state.data.sessions.map((session) => session.events));
         const start = times.length === 0 ? Date.now() : Math.min(...times);
         const end = times.length === 0 ? start + 3600_000 : Math.max(...times);
-        const durationHours = Math.max(1, (end - start) / 3_600_000);
+        const marginMs = 3 * 3_600_000;
+        const domainStart = start - marginMs;
+        const domainEnd = end + marginMs;
+        const durationHours = Math.max(1, (domainEnd - domainStart) / 3_600_000);
+        const tickHours =
+          state.pxPerHour <= 10 ? 24 : state.pxPerHour <= 16 ? 12 : state.pxPerHour <= 28 ? 6 : 3;
         const plotWidth = Math.max(960, Math.ceil(durationHours * state.pxPerHour) + 48);
         const leftPad = 56;
         const rightPad = 60;
@@ -970,7 +987,19 @@ export const overviewHtml = (): string => `
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, chartWidth, chartHeight);
 
-        drawAxes(ctx, chartWidth, chartHeight, leftPad, rightPad, plotHeight, maxTotal, maxEvents);
+        drawAxes(
+        ctx,
+        chartWidth,
+        chartHeight,
+        leftPad,
+        rightPad,
+        plotHeight,
+        maxTotal,
+        maxEvents,
+        domainStart,
+        domainEnd,
+        tickHours,
+      );
 
         const hits = [];
         const ordered = [...state.data.sessions]
@@ -980,7 +1009,7 @@ export const overviewHtml = (): string => `
         const xFor = (session) => {
           const time = parseTime(session.startedAt);
           if (time === null) return leftPad;
-          const ratio = end === start ? 0 : (time - start) / (end - start);
+          const ratio = domainEnd === domainStart ? 0 : (time - domainStart) / (domainEnd - domainStart);
           return leftPad + ratio * plotWidth;
         };
 
@@ -1048,13 +1077,8 @@ export const overviewHtml = (): string => `
                 '\\nsegment name: ' + labelBySegment[segment] +
                 '\\nsegment value: ' + drawValue +
                 '\\nreported totalTokens: ' + (session.finalTotalTokens ?? 'null') +
-                '\\nknown breakdown sum: ' + [
-                  session.nonCachedInputTokens ?? null,
-                  session.finalCachedInputTokens ?? null,
-                  session.visibleOutputTokens ?? null,
-                  session.finalReasoningOutputTokens ?? null,
-                ].filter((value) => value !== null).reduce((sum, value) => sum + value, 0) +
-                '\\nbreakdown mismatch: ' + (session.breakdownMismatchTokens ?? 'null') +
+                '\\nknown breakdown sum: ' + esc(String(session.knownBreakdownTokens ?? 'null')) +
+                '\nbreakdown mismatch: ' + (session.breakdownMismatchTokens ?? 'null') +
                 '\\nevents: ' + session.events +
                 '\\ncompactions: ' + session.compactions +
                 '\\nlikelyDriver: ' + (session.likelyDriver ?? 'null') +

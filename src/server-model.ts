@@ -40,6 +40,7 @@ export type SessionView = Readonly<{
   }>;
   summary: Readonly<{
     finalTotalTokens: number | null;
+    knownBreakdownTokens: number | null;
     finalInputTokens: number | null;
     finalCachedInputTokens: number | null;
     finalOutputTokens: number | null;
@@ -491,6 +492,13 @@ export const sessionView = (analysis: SessionAnalysis): SessionView => {
     },
     summary: {
       finalTotalTokens: analysis.uniqueTokenEvents.length > 0 ? final.totalTokens : null,
+      knownBreakdownTokens:
+        analysis.uniqueTokenEvents.length > 0
+          ? Math.max(0, final.inputTokens - final.cachedInputTokens) +
+            Math.max(0, final.cachedInputTokens) +
+            Math.max(0, final.outputTokens - final.reasoningOutputTokens) +
+            Math.max(0, final.reasoningOutputTokens)
+          : null,
       finalInputTokens: analysis.uniqueTokenEvents.length > 0 ? final.inputTokens : null,
       finalCachedInputTokens:
         analysis.uniqueTokenEvents.length > 0 ? final.cachedInputTokens : null,
@@ -526,6 +534,7 @@ export type SessionOverviewItem = Readonly<{
   endedAt: string | null;
 
   finalTotalTokens: number | null;
+  knownBreakdownTokens: number | null;
   finalInputTokens: number | null;
   finalCachedInputTokens: number | null;
   finalOutputTokens: number | null;
@@ -621,6 +630,7 @@ const sessionOverviewItem = (analysis: SessionAnalysis): SessionOverviewItem => 
     endedAt:
       [...analysis.events].reverse().find((event) => event.timestamp !== null)?.timestamp ?? null,
     finalTotalTokens,
+    knownBreakdownTokens,
     finalInputTokens,
     finalCachedInputTokens,
     finalOutputTokens,

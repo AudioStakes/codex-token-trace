@@ -218,6 +218,15 @@ describe("serve command and server app", () => {
     expect(html).toContain("X: session start time");
     expect(html).toContain("Y (left): total tokens");
     expect(html).toContain("Y (right): events");
+    expect(html).toMatch(
+      /sort\(\s*\(a, b\) => \(b\.finalTotalTokens \?\? 0\) - \(a\.finalTotalTokens \?\? 0\)/,
+    );
+    expect(html).toContain("const domainStart = start - marginMs;");
+    expect(html).toContain("const domainEnd = end + marginMs;");
+    expect(html).toMatch(
+      /const tickHours =\s+state\.pxPerHour <= 10 \? 24 : state\.pxPerHour <= 16 \? 12 : state\.pxPerHour <= 28 \? 6 : 3;/,
+    );
+    expect(html).toContain("ctx.fillText(formatTickLabel(time), x, plotHeight + 8);");
     expect(html).toContain("adjustment");
     expect(html).toContain("legend");
     expect(html).toContain("median/session");
@@ -357,6 +366,7 @@ describe("serve command and server app", () => {
     expect(data.sessions.some((session) => session.compactions > 0)).toBe(true);
     expect(data.sessions[0]).not.toHaveProperty("raw");
     expect(data.sessions[0]).not.toHaveProperty("extracted");
+    expect(data.sessions[0]).toHaveProperty("knownBreakdownTokens");
   });
 
   it("calculates overview breakdown fields from the reported token counts", async () => {
@@ -369,6 +379,7 @@ describe("serve command and server app", () => {
 
     expect(alpha).toMatchObject({
       finalTotalTokens: 294,
+      knownBreakdownTokens: 290,
       finalInputTokens: 250,
       finalCachedInputTokens: 50,
       finalOutputTokens: 40,
@@ -382,6 +393,7 @@ describe("serve command and server app", () => {
     });
     expect(beta).toMatchObject({
       finalTotalTokens: 60,
+      knownBreakdownTokens: 140,
       nonCachedInputTokens: 80,
       visibleOutputTokens: 30,
       adjustmentTokens: 0,
@@ -391,6 +403,7 @@ describe("serve command and server app", () => {
     });
     expect(gamma).toMatchObject({
       finalTotalTokens: 294,
+      knownBreakdownTokens: 290,
       nonCachedInputTokens: 200,
       visibleOutputTokens: 36,
       adjustmentTokens: 4,
