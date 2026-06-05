@@ -178,7 +178,7 @@ describe("stop gate", () => {
 
     expect(first.code).toBe(0);
     expect(second.code).toBe(0);
-    expectExactJsonStdout(second.stdout, { decision: "approve" });
+    expectExactJsonStdout(second.stdout, {});
     expect(second.stderr.trim()).toBe("");
     expect(readFileSync(first.npmLogPath, "utf8").trim().split("\n")).toEqual([
       "run fix --silent",
@@ -208,7 +208,7 @@ describe("stop gate", () => {
 
     expect(first.code).toBe(0);
     expect(second.code).toBe(0);
-    expectExactJsonStdout(second.stdout, { decision: "approve" });
+    expectExactJsonStdout(second.stdout, {});
     expect(second.stderr.trim()).toBe("");
     expect(readFileSync(first.npmLogPath, "utf8").trim().split("\n")).toEqual([
       "run fix --silent",
@@ -225,7 +225,7 @@ describe("stop gate", () => {
     });
 
     expect(result.code).toBe(0);
-    expectExactJsonStdout(result.stdout, { decision: "approve" });
+    expectExactJsonStdout(result.stdout, {});
     expect(result.stderr.trim()).toBe("");
   });
 
@@ -238,7 +238,7 @@ describe("stop gate", () => {
     });
 
     expect(result.code).toBe(0);
-    expectExactJsonStdout(result.stdout, { decision: "approve" });
+    expectExactJsonStdout(result.stdout, {});
     expect(result.stderr.trim()).toBe("");
   });
 

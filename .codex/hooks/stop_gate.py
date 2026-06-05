@@ -155,13 +155,17 @@ def _write_json(obj: dict[str, Any]) -> None:
     sys.stdout.write("\n")
 
 
+def _write_pass() -> None:
+    _write_json({})
+
+
 def main() -> int:
     payload = _read_stdin_json()
     repo_root = _repo_root()
     key = _turn_key(payload, repo_root)
 
     if _is_retrospective_response(payload):
-        _write_json({"decision": "approve"})
+        _write_pass()
         return 0
 
     state_path = _cache_path()
@@ -169,7 +173,7 @@ def main() -> int:
     entries = state.setdefault("entries", {})
 
     if entries.get(key, {}).get("retrospective_requested"):
-        _write_json({"decision": "approve"})
+        _write_pass()
         return 0
 
     fix_result = _run_command(["npm", "run", "fix", "--silent"])
