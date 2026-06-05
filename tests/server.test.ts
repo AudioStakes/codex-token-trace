@@ -229,6 +229,7 @@ describe("serve command and server app", () => {
     expect(html).toContain("Session timeline explorer");
     expect(html).toContain("Open multi-session overview");
     expect(html).toContain("<style>");
+    expect(html).toContain("<script>");
     expect(html).toContain(".tooltip");
   });
 

@@ -1,6 +1,7 @@
 import { overviewCss } from "./assets.js";
 import { overviewClientScript } from "./overview-client.js";
 import { overviewBodyMarkup } from "./overview-markup.js";
+import { indentLines } from "./shared.js";
 
 export const overviewHtml = (): string => `<!doctype html>
 <html lang="en">
@@ -9,13 +10,13 @@ export const overviewHtml = (): string => `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Multi-session overview</title>
     <style>
-${overviewCss()}
+${indentLines(overviewCss(), 6)}
     </style>
   </head>
   <body>
-${overviewBodyMarkup()}
+${indentLines(overviewBodyMarkup(), 4)}
     <script>
-${overviewClientScript()}
+${indentLines(overviewClientScript(), 6)}
     </script>
   </body>
 </html>`;
