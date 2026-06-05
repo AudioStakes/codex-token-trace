@@ -26,11 +26,20 @@ Do not compress code, command output, errors, file contents, docs, commits, or P
 
 ## Default workflow
 
-- Use the repository-local TDD workflow in `docs/agent-skills/tdd.md` for implementation work.
+- For implementation work, use `.agents/skills/tdd/SKILL.md` when the task changes behavior, adds a feature, fixes logic, or needs tests.
+- For trivial mechanical edits, do not load a skill unless another rule applies.
 - Add or update tests that describe intended behavior when the change calls for test coverage.
 - Implement the smallest change that satisfies the requested behavior.
 - Keep parser behavior, report behavior, and CLI behavior separately testable.
 - Prefer small, reviewable changes over broad rewrites.
+
+## Hono work
+
+When code imports `hono` or `hono/*`, or when the task mentions Hono routing, middleware, validation, streaming, or endpoint tests, use `.agents/skills/hono/SKILL.md`.
+
+## Debugging and regressions
+
+When the task involves a bug, failing behavior, confusing error, broken command, regression, flaky behavior, or performance issue, use `.agents/skills/diagnose/SKILL.md`.
 
 ## Verification
 
@@ -64,25 +73,16 @@ If currently on `main`, create or switch to a non-`main` work branch before comm
 
 ## Documentation of design decisions
 
-When a new design decision is made, or when an implicit design decision becomes visible during work, use `docs/agent-skills/grill-with-docs.md` to consider whether it should be recorded as an ADR.
+When a new design decision is made, or when an implicit design decision becomes visible during work, use `.agents/skills/grill-with-docs/SKILL.md` to consider whether it should be recorded as an ADR.
 
-ADRs follow `docs/agent-skills/grill-with-docs.md` and the ADR format from `mattpocock/skills`:
+ADRs:
 
 - Store ADRs in `docs/adr/`.
 - Create `docs/adr/` lazily when the first ADR is needed.
 - Use sequential numbering: `0001-slug.md`, `0002-slug.md`, etc.
-- Keep the ADR short.
-- Required format:
+- Keep ADRs short.
 
-```md
-# {Short title of the decision}
-
-{1-3 sentences: what's the context, what did we decide, and why.}
-```
-
-Optional sections such as status, considered options, and consequences are allowed only when they add real value.
-
-Create an ADR when the decision is:
+Create an ADR only when the decision is:
 
 - hard to reverse,
 - surprising without context,
@@ -92,31 +92,17 @@ Do not create ADRs for obvious, easily reversible, or purely mechanical choices.
 
 ## Documentation of domain language
 
-When a new domain term is introduced, or when an implicit domain term becomes visible during work, use `docs/agent-skills/grill-with-docs.md` to consider whether it should be recorded in project context documentation.
+When a new domain term is introduced, or when an implicit domain term becomes visible during work, use `.agents/skills/grill-with-docs/SKILL.md` to consider whether it should be recorded in project context documentation.
 
-Domain context follows `docs/agent-skills/grill-with-docs.md` and the CONTEXT format from `mattpocock/skills`:
+Domain context:
 
-- For this repository, use a root `CONTEXT.md` unless multiple bounded contexts emerge later.
+- Use a root `CONTEXT.md` unless multiple bounded contexts emerge later.
 - Create `CONTEXT.md` lazily when the first project-specific term is resolved.
 - Keep definitions tight: one or two sentences.
 - Define what the term is, not what it does.
 - Only include terms specific to this project context.
 - Do not add general programming concepts.
 - Prefer one canonical term and list discouraged alternatives with `_Avoid_`.
-
-Root `CONTEXT.md` format:
-
-```md
-# codex-token-trace Context
-
-{One or two sentence description of what this context is and why it exists.}
-
-## Language
-
-**{Term}**:
-{One or two sentence definition.}
-_Avoid_: {discouraged synonym}, {discouraged synonym}
-```
 
 ## Reporting expectations
 
