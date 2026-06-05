@@ -1,5 +1,4 @@
 import { serve } from "@hono/node-server";
-import type { Context } from "hono";
 import { Hono } from "hono";
 
 import type { SessionAnalysis } from "./models.js";
@@ -56,13 +55,6 @@ const defaultServerAssets: ServerAssets = {
   singleSessionClientJs: readSingleSessionClientJs,
 };
 
-type JsonErrorStatus = 400 | 404 | 500;
-
-const jsonError = (context: Context, status: JsonErrorStatus, message: string): Response =>
-  context.json({ error: message }, status);
-
-const jsonBody = <T extends object>(context: Context, body: T): Response => context.json(body);
-
 export const createServerApp = (
   selected: SessionAnalysis,
   analyses: SessionAnalysis[],
@@ -107,19 +99,18 @@ export const createServerApp = (
 
   api.get("/session", (context) => {
     const session = optionalQuery(context.req.query("session"));
-    return jsonBody(context, sessionView(resolveSelected(session)));
+    return context.json(sessionView(resolveSelected(session)));
   });
 
   api.get("/sessions/overview", (context) => {
-    return jsonBody(context, sessionsOverview(analyses));
+    return context.json(sessionsOverview(analyses));
   });
 
   api.get("/events", (context) => {
     const offset = numberQuery(context.req.query("offset"));
     const limit = numberQuery(context.req.query("limit"));
 
-    return jsonBody(
-      context,
+    return context.json(
       eventList(resolveSelected(optionalQuery(context.req.query("session"))), offset, limit),
     );
   });
@@ -127,7 +118,7 @@ export const createServerApp = (
   api.get("/events/:line", (context) => {
     const line = numberQuery(context.req.param("line"));
     if (line === null) {
-      return jsonError(context, 400, "line parameter must be a number");
+      return context.json({ error: "line parameter must be a number" }, 400);
     }
 
     const detail = findEventDetail(
@@ -135,10 +126,10 @@ export const createServerApp = (
       line,
     );
     if (detail === null) {
-      return jsonError(context, 404, "Event line not found");
+      return context.json({ error: "Event line not found" }, 404);
     }
 
-    return jsonBody(context, detail);
+    return context.json(detail);
   });
 
   app.route("/api", api);
