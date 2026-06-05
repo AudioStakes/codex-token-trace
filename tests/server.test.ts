@@ -227,6 +227,8 @@ describe("serve command and server app", () => {
     const html = await response.text();
     expect(html).toContain("Session timeline explorer");
     expect(html).toContain("Open multi-session overview");
+    expect(html).toContain("<style>");
+    expect(html).toContain(".tooltip");
   });
 
   it("returns HTML for GET /overview", async () => {
@@ -236,11 +238,13 @@ describe("serve command and server app", () => {
     const html = await response.text();
     expect(html).toContain("Multi-session overview");
     expect(html).toContain("overflow-x: auto");
+    expect(html).toContain("<style>");
     expect(html).toContain('id="chart-spacer"');
     expect(html).toContain('type="range"');
     expect(html).toContain("X: session start time");
     expect(html).toContain("Y (left): total tokens");
     expect(html).toContain("Y (right): events");
+    expect(html).toContain(".legend");
     expect(html).toMatch(
       /sort\(\s*\(a, b\) => \(b\.finalTotalTokens \?\? 0\) - \(a\.finalTotalTokens \?\? 0\)/,
     );
@@ -286,37 +290,35 @@ describe("serve command and server app", () => {
         compactionCount: 1,
       }),
     );
-  expect(data.timelineLaneEvents).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({ lane: "user", kind: "user_message" }),
-      expect.objectContaining({ lane: "status", kind: "assistant_message" }),
-      expect.objectContaining({ lane: "tool", kind: "tool_call" }),
-      expect.objectContaining({ lane: "tool", kind: "tool_output" }),
-      expect.objectContaining({ lane: "token", kind: "token_count" }),
-      expect.objectContaining({ lane: "compaction", kind: "compaction" }),
-    ]),
-  );
-});
+    expect(data.timelineLaneEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ lane: "user", kind: "user_message" }),
+        expect.objectContaining({ lane: "status", kind: "assistant_message" }),
+        expect.objectContaining({ lane: "tool", kind: "tool_call" }),
+        expect.objectContaining({ lane: "tool", kind: "tool_output" }),
+        expect.objectContaining({ lane: "token", kind: "token_count" }),
+        expect.objectContaining({ lane: "compaction", kind: "compaction" }),
+      ]),
+    );
+  });
 
-it("treats blank session query as omitted", async () => {
-  const response = await betaFocusedApp().request("/api/session?session=");
-  expect(response.status).toBe(200);
+  it("treats blank session query as omitted", async () => {
+    const response = await betaFocusedApp().request("/api/session?session=");
+    expect(response.status).toBe(200);
 
-  const data = await json<SessionView>(response);
-  expect(data.summary.finalTotalTokens).toBe(60);
+    const data = await json<SessionView>(response);
+    expect(data.summary.finalTotalTokens).toBe(60);
 
-  const whitespaceResponse = await betaFocusedApp().request(
-    "/api/session?session=%20%20",
-  );
-  expect(whitespaceResponse.status).toBe(200);
+    const whitespaceResponse = await betaFocusedApp().request("/api/session?session=%20%20");
+    expect(whitespaceResponse.status).toBe(200);
 
-  const whitespaceData = await json<SessionView>(whitespaceResponse);
-  expect(whitespaceData.summary.finalTotalTokens).toBe(60);
-});
+    const whitespaceData = await json<SessionView>(whitespaceResponse);
+    expect(whitespaceData.summary.finalTotalTokens).toBe(60);
+  });
 
-it("returns preview-only event list and classified event kinds", async () => {
-  const response = await fixtureApp().request("/api/events");
-  expect(response.status).toBe(200);
+  it("returns preview-only event list and classified event kinds", async () => {
+    const response = await fixtureApp().request("/api/events");
+    expect(response.status).toBe(200);
 
     const data = await json<EventListResponse>(response);
     expect(data.total).toBe(11);

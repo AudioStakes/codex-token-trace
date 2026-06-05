@@ -1,3 +1,4 @@
+import { singleSessionCss } from "./assets.js";
 import { help } from "./shared.js";
 import { singleSessionTooltips } from "./tooltips.js";
 
@@ -9,74 +10,7 @@ export const singleSessionHtml = (): string => `
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>codex-token-trace session timeline explorer</title>
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #0f172a;
-        --panel: rgba(15, 23, 42, 0.92);
-        --panel-2: rgba(30, 41, 59, 0.92);
-        --text: #e2e8f0;
-        --muted: #94a3b8;
-        --line: rgba(148, 163, 184, 0.18);
-        --blue: #60a5fa;
-        --amber: #f59e0b;
-        --green: #34d399;
-        --purple: #a855f7;
-        --red: #f87171;
-        --cyan: #22d3ee;
-        --pink: #f472b6;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-
-      body {
-        margin: 0;
-        min-height: 100vh;
-        background:
-          radial-gradient(circle at top left, rgba(96, 165, 250, 0.16), transparent 34%),
-          radial-gradient(circle at top right, rgba(168, 85, 247, 0.14), transparent 28%),
-          linear-gradient(180deg, #020617 0%, var(--bg) 44%, #020617 100%);
-        color: var(--text);
-      }
-
-      main { max-width: 1280px; margin: 0 auto; padding: 32px 20px 48px; }
-      header { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; margin-bottom: 20px; }
-      h1 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.7rem); letter-spacing: -0.04em; }
-      .muted { color: var(--muted); }
-
-      .legend { display: flex; flex-wrap: wrap; gap: 12px 14px; margin: 8px 0 16px; color: var(--muted); font-size: 0.92rem; }
-      .legend-item { display: inline-flex; align-items: center; gap: 8px; }
-      .swatch { width: 12px; height: 12px; border-radius: 999px; display: inline-block; }
-      .axis-labels { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 0.86rem; padding: 0 18px 10px; }
-
-      .grid { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 16px; }
-      .card { background: linear-gradient(180deg, var(--panel), var(--panel-2)); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 24px 80px rgba(2, 6, 23, 0.42); overflow: hidden; }
-      .card h2 { margin: 0; padding: 16px 18px 8px; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
-      .canvas-wrap { padding: 0 18px 18px; position: relative; }
-      canvas { width: 100%; height: 360px; display: block; cursor: crosshair; }
-      .tooltip { position: fixed; z-index: 20; pointer-events: none; max-width: 360px; white-space: pre-wrap; background: rgba(2, 6, 23, 0.96); border: 1px solid rgba(148, 163, 184, 0.32); border-radius: 12px; padding: 10px 12px; color: var(--text); box-shadow: 0 18px 54px rgba(2, 6, 23, 0.56); font-size: 0.84rem; line-height: 1.45; display: none; }
-      .help { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, 0.38); background: rgba(15, 23, 42, 0.8); color: var(--muted); cursor: help; font-size: 0.72rem; padding: 0; }
-
-      .meta { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; padding: 0 18px 18px; }
-      .stat { background: rgba(15, 23, 42, 0.56); border: 1px solid var(--line); border-radius: 16px; padding: 12px; }
-      .stat .label { color: var(--muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.12em; display: flex; align-items: center; gap: 6px; }
-      .stat .value { margin-top: 6px; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
-
-      .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px 0; }
-      .toolbar button, .detail button { appearance: none; border: 1px solid var(--line); border-radius: 999px; background: rgba(15, 23, 42, 0.72); color: var(--text); padding: 8px 12px; cursor: pointer; }
-      .toolbar button:disabled { opacity: 0.45; cursor: not-allowed; }
-      .table-wrap { overflow: auto; max-height: 620px; }
-      table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-      thead th { position: sticky; top: 0; background: rgba(15, 23, 42, 0.98); text-align: left; color: var(--muted); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.12em; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-      tbody td { padding: 11px 14px; border-bottom: 1px solid rgba(148, 163, 184, 0.12); vertical-align: top; }
-      tbody tr { cursor: pointer; }
-      tbody tr:hover, tbody tr.selected { background: rgba(96, 165, 250, 0.09); }
-      .kind { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-      .pill { border-radius: 999px; padding: 3px 8px; background: rgba(148, 163, 184, 0.16); color: var(--text); font-size: 0.72rem; }
-      pre { margin: 0; padding: 18px; overflow: auto; max-height: 620px; white-space: pre-wrap; word-break: break-word; font-size: 0.88rem; line-height: 1.5; }
-      .detail-empty { padding: 18px; color: var(--muted); }
-      .detail-heading { padding: 18px 18px 0; color: var(--muted); }
-      .detail-summary { padding: 8px 18px 0; white-space: pre-wrap; line-height: 1.5; }
-
-      @media (max-width: 980px) { .grid, .meta { grid-template-columns: 1fr; } }
+${singleSessionCss()}
     </style>
   </head>
   <body>
