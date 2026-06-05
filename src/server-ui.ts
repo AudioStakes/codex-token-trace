@@ -20,6 +20,10 @@ const legendTooltips = {
     "新しく処理された入力の大きさが、そのセッション内の最大値に対してどれくらい大きいか。急に上がる箇所は、新しい会話、ファイル内容、コマンド結果などが多く入った可能性がある（nonCachedInputTokens / maxNonCachedInputTokens）。",
   userMessage:
     "ユーザーから Codex への入力。最初の依頼、追加指示、仕様変更、確認依頼などを追うための出来事。",
+  compaction:
+    "Codex が長くなった文脈を圧縮したタイミング。会話履歴や作業内容が増えて、扱える情報量の上限に近づくと起きる。圧縮後は一度に見ている情報量が下がることがある。",
+  largeEvent:
+    "ログ内で特に文字数が大きい event。長いコマンド出力、大きなファイル内容、巨大な tool output などが該当する。直接の token 使用量ではないが、その後の入力増加と関連することがある。",
   codexStatus:
     "Codex の途中説明、計画、判断、検証報告など。作業方針や状況認識の変化を追うための出来事。",
   tool: "Codex が実行したツール利用。コマンド実行、ファイル読み取り、検索、パッチ適用などを含む。出力が大きいと、その後の入力増加と関連することがある。",
@@ -122,6 +126,8 @@ export const serverHtml = (): string => `
         <span class="legend-item"><span class="swatch" style="background:#f59e0b"></span>context pressure ${help(legendTooltips.contextPressure)}</span>
         <span class="legend-item"><span class="swatch" style="background:#34d399"></span>non-cached pressure ${help(legendTooltips.nonCachedPressure)}</span>
         <span class="legend-item"><span class="swatch" style="background:#22d3ee"></span>user message ${help(legendTooltips.userMessage)}</span>
+        <span class="legend-item"><span class="swatch" style="background:#f59e0b"></span>compaction ${help(legendTooltips.compaction)}</span>
+        <span class="legend-item"><span class="swatch" style="background:#f87171"></span>large event ${help(legendTooltips.largeEvent)}</span>
         <span class="legend-item"><span class="swatch" style="background:#f472b6"></span>Codex status ${help(legendTooltips.codexStatus)}</span>
         <span class="legend-item"><span class="swatch" style="background:#fb923c"></span>tool ${help(legendTooltips.tool)}</span>
         <span class="legend-item"><span class="swatch" style="background:#e2e8f0"></span>token_count ${help(legendTooltips.tokenCount)}</span>

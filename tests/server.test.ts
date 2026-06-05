@@ -137,6 +137,8 @@ describe("serve command and server app", () => {
       "context pressure",
       "non-cached pressure",
       "user message",
+      "compaction",
+      "large event",
       "Codex status",
       "tool",
       "token_count",
@@ -146,6 +148,12 @@ describe("serve command and server app", () => {
     expect(html).toContain("data-tip");
     expect(html).toContain("X: time");
     expect(html).toContain("Y: normalized pressure / progress (%)");
+    expect(html).toContain(
+      "Codex が長くなった文脈を圧縮したタイミング。会話履歴や作業内容が増えて、扱える情報量の上限に近づくと起きる。圧縮後は一度に見ている情報量が下がることがある。",
+    );
+    expect(html).toContain(
+      "ログ内で特に文字数が大きい event。長いコマンド出力、大きなファイル内容、巨大な tool output などが該当する。直接の token 使用量ではないが、その後の入力増加と関連することがある。",
+    );
     expect(html).toContain("compaction</span>");
     expect(html).toContain("large event</span>");
   });
