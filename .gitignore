@@ -44,3 +44,5 @@ reports/
 sessions/
 *.jsonl
 !tests/fixtures/*.jsonl
+
+.serena
