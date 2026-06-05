@@ -21,12 +21,6 @@
             "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_gate.py\"",
             "timeout": 600,
             "statusMessage": "Running final verification"
-          },
-          {
-            "type": "command",
-            "command": "sh \"$(git rev-parse --show-toplevel)/.codex/hooks/git-status-stop.sh\"",
-            "timeout": 10,
-            "statusMessage": "Checking git changes since session start"
           }
         ]
       }

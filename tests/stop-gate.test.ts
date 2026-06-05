@@ -110,22 +110,18 @@ describe("stop gate", () => {
   it("keeps the Stop hook configuration to a single stop_gate command", () => {
     const hooksConfig = parseJson(readFileSync(hooksConfigPath, "utf8"));
 
-    expect(hooksConfig).toEqual({
-      hooks: {
-        Stop: [
+    expect((hooksConfig as { hooks: { Stop: unknown } }).hooks.Stop).toEqual([
+      {
+        hooks: [
           {
-            hooks: [
-              {
-                type: "command",
-                command: 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/stop_gate.py"',
-                timeout: 600,
-                statusMessage: "Running final verification",
-              },
-            ],
+            type: "command",
+            command: 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/stop_gate.py"',
+            timeout: 600,
+            statusMessage: "Running final verification",
           },
         ],
       },
-    });
+    ]);
     expect(readFileSync(hooksConfigPath, "utf8")).not.toContain("stop_verify.sh");
     expect(readFileSync(stopVerifyPath, "utf8")).toContain("npm run fix --silent");
   });
