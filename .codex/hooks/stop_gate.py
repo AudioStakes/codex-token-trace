@@ -151,7 +151,7 @@ def _is_retrospective_response(payload: dict[str, Any]) -> bool:
 
 
 def _write_json(obj: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(obj, ensure_ascii=False))
+    sys.stdout.write(json.dumps(obj, ensure_ascii=False, separators=(",", ":")))
     sys.stdout.write("\n")
 
 

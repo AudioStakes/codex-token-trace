@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = process.cwd();
+const hooksConfigPath = join(repoRoot, ".codex", "hooks.json");
 const stopGatePath = join(repoRoot, ".codex", "hooks", "stop_gate.py");
+const stopVerifyPath = join(repoRoot, ".codex", "hooks", "stop_verify.sh");
 const retrospectivePromptPath = join(
   repoRoot,
   ".codex",
@@ -17,8 +19,8 @@ const retrospectivePromptPath = join(
 type RunOptions = {
   npmMode?: "success" | "verify-fail" | "fix-fail";
   npmLogPath?: string;
-  xdgCacheHome?: string;
   cwd?: string;
+  xdgCacheHome?: string;
 };
 
 const runStopGate = (input: unknown, options: RunOptions = {}) => {
@@ -97,14 +99,45 @@ exit 1
 
 const parseJson = (text: string): Record<string, unknown> => JSON.parse(text);
 
+const expectExactJsonStdout = (stdout: string, expected: Record<string, unknown>) => {
+  const trimmed = stdout.trim();
+  expect(trimmed).toBe(JSON.stringify(expected));
+  expect(JSON.parse(trimmed)).toEqual(expected);
+  expect(stdout).toBe(`${trimmed}\n`);
+};
+
 describe("stop gate", () => {
+  it("keeps the Stop hook configuration to a single stop_gate command", () => {
+    const hooksConfig = parseJson(readFileSync(hooksConfigPath, "utf8"));
+
+    expect(hooksConfig).toEqual({
+      hooks: {
+        Stop: [
+          {
+            hooks: [
+              {
+                type: "command",
+                command: 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/stop_gate.py"',
+                timeout: 600,
+                statusMessage: "Running final verification",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(readFileSync(hooksConfigPath, "utf8")).not.toContain("stop_verify.sh");
+    expect(readFileSync(stopVerifyPath, "utf8")).toContain("npm run fix --silent");
+  });
+
   it("blocks with the retrospective prompt after successful fix and verify", () => {
     const result = runStopGate({
       session_id: "session-a",
       turn_id: "turn-1",
       cwd: repoRoot,
     });
-    const output = parseJson(result.stdout);
+
+    const output = parseJson(result.stdout.trim());
     const statePath = join(result.cacheHome, "codex-stop-gate", "state.json");
     const state = parseJson(readFileSync(statePath, "utf8"));
 
@@ -113,6 +146,8 @@ describe("stop gate", () => {
       decision: "block",
       reason: readFileSync(retrospectivePromptPath, "utf8"),
     });
+    expectExactJsonStdout(result.stdout, output);
+    expect(result.stderr.trim()).toBe("");
     expect(state).toHaveProperty("entries");
     expect(JSON.stringify(state)).toContain("session-a");
     expect(readFileSync(result.npmLogPath, "utf8").trim().split("\n")).toEqual([
@@ -141,24 +176,29 @@ describe("stop gate", () => {
       },
     );
 
-    expect(parseJson(first.stdout)).toEqual({
-      decision: "block",
-      reason: readFileSync(retrospectivePromptPath, "utf8"),
-    });
-    expect(parseJson(second.stdout)).toEqual({ decision: "approve" });
+    expect(first.code).toBe(0);
+    expect(second.code).toBe(0);
+    expectExactJsonStdout(second.stdout, { decision: "approve" });
+    expect(second.stderr.trim()).toBe("");
+    expect(readFileSync(first.npmLogPath, "utf8").trim().split("\n")).toEqual([
+      "run fix --silent",
+      "run verify --silent",
+    ]);
   });
 
   it("approves the same turn after the retrospective request has already been made", () => {
     const first = runStopGate({
-      session_id: "session-b",
-      turn_id: "turn-2",
+      session_id: "session-c",
+      turn_id: "turn-3",
       cwd: repoRoot,
+      message: "first payload",
     });
     const second = runStopGate(
       {
-        session_id: "session-b",
-        turn_id: "turn-2",
+        session_id: "session-c",
+        turn_id: "turn-3",
         cwd: repoRoot,
+        message: "## Retrospective\n- None.",
       },
       {
         xdgCacheHome: first.cacheHome,
@@ -168,11 +208,12 @@ describe("stop gate", () => {
 
     expect(first.code).toBe(0);
     expect(second.code).toBe(0);
-    expect(parseJson(first.stdout)).toEqual({
-      decision: "block",
-      reason: readFileSync(retrospectivePromptPath, "utf8"),
-    });
-    expect(parseJson(second.stdout)).toEqual({ decision: "approve" });
+    expectExactJsonStdout(second.stdout, { decision: "approve" });
+    expect(second.stderr.trim()).toBe("");
+    expect(readFileSync(first.npmLogPath, "utf8").trim().split("\n")).toEqual([
+      "run fix --silent",
+      "run verify --silent",
+    ]);
   });
 
   it("approves retrospective responses that start with the retrospective heading", () => {
@@ -184,7 +225,8 @@ describe("stop gate", () => {
     });
 
     expect(result.code).toBe(0);
-    expect(parseJson(result.stdout)).toEqual({ decision: "approve" });
+    expectExactJsonStdout(result.stdout, { decision: "approve" });
+    expect(result.stderr.trim()).toBe("");
   });
 
   it("approves retrospective responses that include numbered items", () => {
@@ -196,7 +238,8 @@ describe("stop gate", () => {
     });
 
     expect(result.code).toBe(0);
-    expect(parseJson(result.stdout)).toEqual({ decision: "approve" });
+    expectExactJsonStdout(result.stdout, { decision: "approve" });
+    expect(result.stderr.trim()).toBe("");
   });
 
   it("returns a concise verification failure reason", () => {
@@ -210,8 +253,8 @@ describe("stop gate", () => {
         npmMode: "verify-fail",
       },
     );
-    const output = parseJson(result.stdout);
-    const reason = String(output.reason ?? "");
+    const output = parseJson(result.stdout.trim());
+    const reason = String(output.reason);
 
     expect(result.code).toBe(0);
     expect(output.decision).toBe("block");
@@ -220,5 +263,6 @@ describe("stop gate", () => {
     expect(reason).toContain("exit: 1");
     expect(reason).toContain("Fix the failures above and rerun the verification gate.");
     expect(reason).not.toContain("x".repeat(100));
+    expect(result.stderr.trim()).toBe("");
   });
 });
