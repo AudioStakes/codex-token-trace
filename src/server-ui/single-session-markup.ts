@@ -2,7 +2,7 @@ import { help } from "./shared.js";
 import { singleSessionTooltips } from "./tooltips.js";
 
 export const singleSessionBodyMarkup = (): string =>
-  String.raw`
+  `
     <main>
       <header>
         <div>

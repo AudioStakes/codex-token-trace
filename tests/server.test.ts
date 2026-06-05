@@ -233,8 +233,8 @@ describe("serve command and server app", () => {
     const html = await response.text();
     expect(html).toContain("Multi-session overview");
     expect(html).toContain("chart-footer");
-  expect(html).toContain('<script type="module" src="/assets/overview-client.js"></script>');
-  expect(html).not.toContain("<script>");
+    expect(html).toContain('<script type="module" src="/assets/overview-client.js"></script>');
+    expect(html).not.toContain("<script>");
     expect(html).toContain("<style>");
     expect(html).toContain('id="chart-spacer"');
     expect(html).toContain('id="chart-error"');
@@ -261,15 +261,15 @@ describe("serve command and server app", () => {
     expect(html).toContain("sessions with compaction");
 
     const assetResponse = await overviewApp().request("/assets/overview-client.js");
-  expect(assetResponse.status).toBe(200);
-  expect(assetResponse.headers.get("content-type")).toContain("text/javascript; charset=utf-8");
+    expect(assetResponse.status).toBe(200);
+    expect(assetResponse.headers.get("content-type")).toContain("text/javascript; charset=utf-8");
 
-  const script = await assetResponse.text();
-  assertModuleParses(script);
-  expect(script).toContain("renderChart");
-  expect(script).toContain("const parseTime = (timestamp) =>");
-  expect(script).toContain("Failed to render chart:");
-  expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
+    const script = await assetResponse.text();
+    assertModuleParses(script);
+    expect(script).toContain("renderChart");
+    expect(script).toContain("const parseTime = (timestamp) =>");
+    expect(script).toContain("Failed to render chart:");
+    expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
     expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");
     expect(script).toContain("scrollArea.addEventListener('scroll', scheduleRenderChart);");
     expect(script).toContain("window.addEventListener('resize', scheduleRenderChart);");
