@@ -180,10 +180,18 @@ const sessionCRows = (): Array<Record<string, unknown>> => [
   tokenCount("2026-05-25T02:00:08Z", 250, 50, 40, 4, 294, 1000),
 ];
 
-const fixtureApp = () => createServerApp(parseSessionFile(writeJsonl(sessionARows())));
+const fixtureApp = () =>
+  createServerApp(parseSessionFile(writeJsonl(sessionARows())), [parseSessionFile(writeJsonl(sessionARows())), parseSessionFile(writeJsonl(sessionBRows())), parseSessionFile(writeJsonl(sessionCRows()))], overviewAssets);
+
+const testSingleSessionClientJs = `
+export const loadDetail = () => {};
+export const setGraphPointDetail = () => {};
+export const renderEventRows = () => {};
+`;
 
 const overviewAssets = {
   overviewClientJs: () => "export {};",
+  singleSessionClientJs: () => testSingleSessionClientJs,
 };
 
 const overviewApp = () => {
@@ -222,12 +230,14 @@ describe("serve command and server app", () => {
     const response = await fixtureApp().request("/");
     expect(response.status).toBe(200);
 
-    const html = await response.text();
-    expect(html).toContain("Session timeline explorer");
-    expect(html).toContain("Open multi-session overview");
-    expect(html).toContain("<style>");
-    expect(html).toContain("<script>");
-    expect(html).toContain(".tooltip");
+  const html = await response.text();
+  expect(html).toContain("Session timeline explorer");
+  expect(html).toContain("<style>");
+  expect(html).toContain(
+    '<script type="module" src="/assets/single-session-client.js"></script>',
+  );
+  expect(html).not.toContain("<script>");
+  expect(html).toContain(".tooltip");
   });
 
   it("returns HTML for GET /overview", async () => {
@@ -260,10 +270,44 @@ describe("serve command and server app", () => {
     expect(assetResponse.status).toBe(200);
     expect(assetResponse.headers.get("content-type")).toContain("text/javascript; charset=utf-8");
 
-    const script = await assetResponse.text();
-    assertModuleParses(script);
-    expect(script).toBe("export {};");
-  });
+  const script = await assetResponse.text();
+  assertModuleParses(script);
+  expect(script).toBe("export {};");
+});
+
+it("returns single-session client asset", async () => {
+  const response = await overviewApp().request("/assets/single-session-client.js");
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toContain("text/javascript; charset=utf-8");
+
+  const script = await response.text();
+  assertModuleParses(script);
+  expect(script).toContain("loadDetail");
+  expect(script).toContain("setGraphPointDetail");
+  expect(script).toContain("renderEventRows");
+});
+
+it("returns single-session client asset errors as plain text", async () => {
+  const app = createServerApp(
+    parseSessionFile(writeJsonl(sessionARows())),
+    [
+      parseSessionFile(writeJsonl(sessionARows())),
+      parseSessionFile(writeJsonl(sessionBRows())),
+      parseSessionFile(writeJsonl(sessionCRows())),
+    ],
+    {
+      overviewClientJs: () => "export {};",
+      singleSessionClientJs: () => {
+        throw new Error("single-session-client.js is missing. Run npm run build.");
+      },
+    },
+  );
+
+  const response = await app.request("/assets/single-session-client.js");
+  expect(response.status).toBe(500);
+  expect(response.headers.get("content-type")).toContain("text/plain");
+  expect(await response.text()).toBe("single-session-client.js is missing. Run npm run build.");
+});
 
   it("returns session summary and normalized pressure series", async () => {
     const response = await fixtureApp().request("/api/session");
@@ -357,14 +401,15 @@ describe("serve command and server app", () => {
     expect(data.events[0]?.line).toBe(1);
   });
 
-  it("keeps detail loading hooks for event list rows and event lane clicks", async () => {
-    const response = await fixtureApp().request("/");
-    expect(response.status).toBe(200);
+it("keeps detail loading hooks for event list rows and event lane clicks", async () => {
+  const response = await overviewApp().request("/assets/single-session-client.js");
+  expect(response.status).toBe(200);
 
-    const html = await response.text();
-    expect(html).toContain("loadDetail(row.dataset.line)");
-    expect(html).toContain("setGraphPointDetail(hit)");
-  });
+  const script = await response.text();
+  expect(script).toContain("loadDetail");
+  expect(script).toContain("setGraphPointDetail");
+  expect(script).toContain("renderEventRows");
+});
 
   it("returns event detail with raw JSON and extracted exec_command cmd", async () => {
     const response = await fixtureApp().request("/api/events/5");

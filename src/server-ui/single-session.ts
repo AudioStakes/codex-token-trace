@@ -1,7 +1,6 @@
 import { singleSessionCss } from "./assets.js";
-import { indentLines } from "./shared.js";
-import { singleSessionClientScript } from "./single-session-client.js";
 import { singleSessionBodyMarkup } from "./single-session-markup.js";
+import { indentLines } from "./shared.js";
 
 export const singleSessionHtml = (): string => `<!doctype html>
 <html lang="en">
@@ -15,8 +14,6 @@ ${indentLines(singleSessionCss(), 6)}
   </head>
   <body>
 ${indentLines(singleSessionBodyMarkup(), 4)}
-    <script>
-${indentLines(singleSessionClientScript(), 6)}
-    </script>
+    <script type="module" src="/assets/single-session-client.js"></script>
   </body>
 </html>`;
