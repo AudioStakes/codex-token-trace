@@ -14,7 +14,6 @@
 - [Development](docs/agent-instructions/development.md)
 - [Testing](docs/agent-instructions/testing.md)
 - [Docs and Domain](docs/agent-instructions/docs-and-domain.md)
-- [Delivery](docs/agent-instructions/delivery.md)
 
 ## Delivery Rules
 
