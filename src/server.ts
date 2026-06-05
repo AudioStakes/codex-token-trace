@@ -15,7 +15,7 @@ const selectAnalysis = (
   analyses: SessionAnalysis[],
   sessionQuery: string | null,
 ): SessionAnalysis | undefined => {
-  if (sessionQuery === null) return undefined;
+  if (sessionQuery === null || sessionQuery.trim() === "") return undefined;
 
   const exact = analyses.find(
     (analysis) => analysis.sessionId === sessionQuery || analysis.path === sessionQuery,
@@ -78,7 +78,7 @@ export const createServerApp = (
 export const startServer = (
   selected: SessionAnalysis,
   analyses: SessionAnalysis[] = [selected],
-  port = Number(process.env.PORT ?? "3000"),
+  port: number,
 ): void => {
   const app = createServerApp(selected, analyses);
   serve({ fetch: app.fetch, port });
