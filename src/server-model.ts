@@ -10,6 +10,8 @@ import {
   maxNonCachedInputTokens,
   nonCachedInputTokens,
   type SessionAnalysis,
+  toolDisplayName,
+  toolInputLabel,
   toolOutputChars,
 } from "./models.js";
 import { compactionImpacts, toolUsageGroups } from "./reports.js";
@@ -38,6 +40,7 @@ export type SessionView = Readonly<{
   }>;
   summary: Readonly<{
     finalTotalTokens: number | null;
+    knownBreakdownTokens: number | null;
     finalInputTokens: number | null;
     finalCachedInputTokens: number | null;
     finalOutputTokens: number | null;
@@ -489,6 +492,13 @@ export const sessionView = (analysis: SessionAnalysis): SessionView => {
     },
     summary: {
       finalTotalTokens: analysis.uniqueTokenEvents.length > 0 ? final.totalTokens : null,
+      knownBreakdownTokens:
+        analysis.uniqueTokenEvents.length > 0
+          ? Math.max(0, final.inputTokens - final.cachedInputTokens) +
+            Math.max(0, final.cachedInputTokens) +
+            Math.max(0, final.outputTokens - final.reasoningOutputTokens) +
+            Math.max(0, final.reasoningOutputTokens)
+          : null,
       finalInputTokens: analysis.uniqueTokenEvents.length > 0 ? final.inputTokens : null,
       finalCachedInputTokens:
         analysis.uniqueTokenEvents.length > 0 ? final.cachedInputTokens : null,
@@ -506,6 +516,184 @@ export const sessionView = (analysis: SessionAnalysis): SessionView => {
     pressureSeries: pressureSeries(analysis),
     markers: markers(analysis),
     timelineLaneEvents: timelineLaneEvents(analysis),
+  };
+};
+
+export type SessionOverviewDominantPart =
+  | "non_cached_input"
+  | "cached_input"
+  | "visible_output"
+  | "reasoning_output"
+  | "adjustment"
+  | "unknown";
+
+export type SessionOverviewItem = Readonly<{
+  sessionId: string;
+  path: string;
+  startedAt: string | null;
+  endedAt: string | null;
+
+  finalTotalTokens: number | null;
+  knownBreakdownTokens: number | null;
+  finalInputTokens: number | null;
+  finalCachedInputTokens: number | null;
+  finalOutputTokens: number | null;
+  finalReasoningOutputTokens: number | null;
+
+  nonCachedInputTokens: number | null;
+  visibleOutputTokens: number | null;
+  adjustmentTokens: number | null;
+  breakdownMismatchTokens: number | null;
+
+  events: number;
+  compactions: number;
+  maxNonCachedInputTokens: number | null;
+  maxContextUsageRatio: number | null;
+
+  dominantPart: SessionOverviewDominantPart;
+
+  likelyDriver: string | null;
+  topCommandPreview: string | null;
+}>;
+
+export type SessionsOverviewResponse = Readonly<{
+  summary: Readonly<{
+    sessions: number;
+    totalTokens: number;
+    medianTotalTokens: number | null;
+    maxEvents: number | null;
+    sessionsWithCompaction: number;
+    startedAt: string | null;
+    endedAt: string | null;
+  }>;
+  sessions: SessionOverviewItem[];
+}>;
+
+const sessionOverviewItem = (analysis: SessionAnalysis): SessionOverviewItem => {
+  const final = finalTotal(analysis);
+  const hasTokens = analysis.uniqueTokenEvents.length > 0;
+
+  const finalTotalTokens = hasTokens ? final.totalTokens : null;
+  const finalInputTokens = hasTokens ? final.inputTokens : null;
+  const finalCachedInputTokens = hasTokens ? final.cachedInputTokens : null;
+  const finalOutputTokens = hasTokens ? final.outputTokens : null;
+  const finalReasoningOutputTokens = hasTokens ? final.reasoningOutputTokens : null;
+
+  const nonCachedInputTokens =
+    finalInputTokens !== null && finalCachedInputTokens !== null
+      ? finalInputTokens - finalCachedInputTokens
+      : null;
+  const visibleOutputTokens =
+    finalOutputTokens !== null && finalReasoningOutputTokens !== null
+      ? finalOutputTokens - finalReasoningOutputTokens
+      : null;
+
+  const safeNonCachedInputTokens = Math.max(0, nonCachedInputTokens ?? 0);
+  const safeCachedInputTokens = Math.max(0, finalCachedInputTokens ?? 0);
+  const safeVisibleOutputTokens = Math.max(0, visibleOutputTokens ?? 0);
+  const safeReasoningOutputTokens = Math.max(0, finalReasoningOutputTokens ?? 0);
+
+  const knownBreakdownTokens =
+    finalTotalTokens === null
+      ? null
+      : safeNonCachedInputTokens +
+        safeCachedInputTokens +
+        safeVisibleOutputTokens +
+        safeReasoningOutputTokens;
+
+  const breakdownMismatchTokens =
+    finalTotalTokens === null || knownBreakdownTokens === null
+      ? null
+      : finalTotalTokens - knownBreakdownTokens;
+
+  const adjustmentTokens =
+    breakdownMismatchTokens !== null && breakdownMismatchTokens > 0 ? breakdownMismatchTokens : 0;
+
+  const candidates: Array<Readonly<[SessionOverviewDominantPart, number]>> = [
+    ["non_cached_input", safeNonCachedInputTokens],
+    ["cached_input", safeCachedInputTokens],
+    ["visible_output", safeVisibleOutputTokens],
+    ["reasoning_output", safeReasoningOutputTokens],
+    ["adjustment", adjustmentTokens],
+  ];
+  const [dominantPart, dominantValue] = candidates.reduce(
+    (winner, current) => (current[1] > winner[1] ? current : winner),
+    ["unknown", 0] as const,
+  );
+
+  const topTool = [...analysis.tools].sort((a, b) => b.outputChars - a.outputChars)[0] ?? null;
+
+  return {
+    sessionId: analysis.sessionId,
+    path: analysis.path,
+    startedAt: analysis.events.find((event) => event.timestamp !== null)?.timestamp ?? null,
+    endedAt:
+      [...analysis.events].reverse().find((event) => event.timestamp !== null)?.timestamp ?? null,
+    finalTotalTokens,
+    knownBreakdownTokens,
+    finalInputTokens,
+    finalCachedInputTokens,
+    finalOutputTokens,
+    finalReasoningOutputTokens,
+    nonCachedInputTokens,
+    visibleOutputTokens,
+    adjustmentTokens: finalTotalTokens === null ? null : adjustmentTokens,
+    breakdownMismatchTokens,
+    events: analysis.events.length,
+    compactions: analysis.events.filter((event) => event.topType === "compacted").length,
+    maxNonCachedInputTokens: hasTokens ? maxNonCachedInputTokens(analysis) : null,
+    maxContextUsageRatio: hasTokens ? maxContextRatio(analysis) : null,
+    dominantPart: dominantValue > 0 ? dominantPart : "unknown",
+    likelyDriver: topTool === null ? null : toolDisplayName(topTool),
+    topCommandPreview: topTool === null ? null : toolInputLabel(topTool),
+  };
+};
+
+const median = (values: number[]): number | null => {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  const left = sorted[middle - 1] ?? sorted[middle] ?? 0;
+  const right = sorted[middle] ?? left;
+  return sorted.length % 2 === 0 ? (left + right) / 2 : right;
+};
+
+export const sessionsOverview = (analyses: SessionAnalysis[]): SessionsOverviewResponse => {
+  const sessions = [...analyses].map(sessionOverviewItem).sort((a, b) => {
+    const left = a.startedAt === null ? Number.POSITIVE_INFINITY : Date.parse(a.startedAt);
+    const right = b.startedAt === null ? Number.POSITIVE_INFINITY : Date.parse(b.startedAt);
+    if (left !== right) return left - right;
+    return a.path.localeCompare(b.path);
+  });
+
+  const totals = sessions
+    .map((session) => session.finalTotalTokens)
+    .filter((value): value is number => value !== null);
+  const startedAtValues = sessions
+    .map((session) => session.startedAt)
+    .filter((value): value is string => value !== null)
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value));
+  const endedAtValues = sessions
+    .map((session) => session.endedAt)
+    .filter((value): value is string => value !== null)
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value));
+
+  return {
+    summary: {
+      sessions: sessions.length,
+      totalTokens: totals.reduce((sum, value) => sum + value, 0),
+      medianTotalTokens: median(totals),
+      maxEvents:
+        sessions.length === 0 ? null : Math.max(...sessions.map((session) => session.events)),
+      sessionsWithCompaction: sessions.filter((session) => session.compactions > 0).length,
+      startedAt:
+        startedAtValues.length === 0 ? null : new Date(Math.min(...startedAtValues)).toISOString(),
+      endedAt:
+        endedAtValues.length === 0 ? null : new Date(Math.max(...endedAtValues)).toISOString(),
+    },
+    sessions,
   };
 };
 

@@ -148,9 +148,18 @@ npm run dev -- serve --session rollout-2026-05-25 --port 3030
 API endpoints:
 
 - `GET /` returns the browser UI.
+- `GET /overview` returns the multi-session overview.
 - `GET /api/session` returns session summary, pressure series, and timeline markers.
+- `GET /api/sessions/overview` returns overview summary and per-session previews.
 - `GET /api/events?offset=0&limit=100` returns preview-only event list pages.
 - `GET /api/events/:line` returns full detail for one event line.
+
+Browser:
+
+```text
+http://localhost:3030/
+http://localhost:3030/overview
+```
 
 ### Common options
 
