@@ -230,6 +230,7 @@ describe("serve command and server app", () => {
     const html = await response.text();
     expect(html).toContain("Multi-session overview");
     expect(html).toContain("overflow-x: auto");
+    expect(html).toContain('id="chart-spacer"');
     expect(html).toContain('type="range"');
     expect(html).toContain("X: session start time");
     expect(html).toContain("Y (left): total tokens");
@@ -250,6 +251,14 @@ describe("serve command and server app", () => {
 
     const script = extractSingleScript(html);
     assertScriptParses(script);
+    expect(script).toContain("chartSpacer.style.width = chartWidth + 'px';");
+    expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
+    expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");
+    expect(script).toContain("ctx.translate(-scrollLeft, 0);");
+    expect(script).toContain("scrollArea.addEventListener('scroll', scheduleRenderChart);");
+    expect(script).toContain("window.addEventListener('resize', scheduleRenderChart);");
+    expect(script).toContain("if (viewportWidth <= 0 || chartHeight <= 0) return;");
+    expect(script).not.toContain("chart.width = Math.round(chartWidth * dpr);");
   });
 
   it("returns session summary and normalized pressure series", async () => {

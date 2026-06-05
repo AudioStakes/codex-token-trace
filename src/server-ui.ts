@@ -605,17 +605,25 @@ export const overviewHtml = (): string => `
         border-radius: 999px;
         display: inline-block;
       }
-      .chart-shell {
-        overflow-x: auto;
-        padding: 14px 0 6px;
-        border-radius: 18px;
-      }
-      .chart {
-        display: block;
-        width: 100%;
-        height: 380px;
-        cursor: crosshair;
-      }
+.chart-shell {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 14px 0 6px;
+  border-radius: 18px;
+}
+.chart-spacer {
+  position: relative;
+  height: 380px;
+}
+.chart {
+  position: sticky;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: 380px;
+  cursor: crosshair;
+}
       .axis-labels {
         justify-content: space-between;
         padding: 0 8px 8px;
@@ -754,9 +762,11 @@ export const overviewHtml = (): string => `
         <span>Y (right): events</span>
       </div>
 
-      <section class="panel chart-shell" id="chart-scroll">
-        <canvas id="chart" class="chart" width="1200" height="380"></canvas>
-      </section>
+      <div class="panel chart-shell" id="chart-scroll">
+        <div class="chart-spacer" id="chart-spacer">
+          <canvas id="chart" class="chart"></canvas>
+        </div>
+      </div>
 
       <section class="grid">
         <div class="table-shell">
@@ -787,6 +797,7 @@ export const overviewHtml = (): string => `
       const tooltip = document.getElementById('tooltip');
       const chart = document.getElementById('chart');
       const scrollArea = document.getElementById('chart-scroll');
+      const chartSpacer = document.getElementById('chart-spacer');
       const scaleInput = document.getElementById('scale');
       const scaleValue = document.getElementById('scale-value');
       const rankingBody = document.getElementById('ranking-body');
@@ -975,22 +986,27 @@ export const overviewHtml = (): string => `
         const plotHeight = 292;
         const chartWidth = leftPad + plotWidth + rightPad;
         const chartHeight = 380;
-        const dpr = window.devicePixelRatio || 1;
-        const scrollRatio = Math.max(0, scrollArea.scrollLeft) / Math.max(1, scrollArea.scrollWidth - scrollArea.clientWidth);
+        const viewportWidth = Math.floor(scrollArea.clientWidth);
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        if (viewportWidth <= 0 || chartHeight <= 0) return;
 
-        chart.style.width = chartWidth + 'px';
+        chartSpacer.style.width = chartWidth + 'px';
+        chart.style.width = viewportWidth + 'px';
         chart.style.height = chartHeight + 'px';
-        chart.width = Math.round(chartWidth * dpr);
+        chart.width = Math.round(viewportWidth * dpr);
         chart.height = Math.round(chartHeight * dpr);
+        const scrollLeft = Math.max(0, scrollArea.scrollLeft);
 
         const ctx = chart.getContext('2d');
         if (!ctx) {
           throw new Error('Canvas 2D context is not available');
         }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, chartWidth, chartHeight);
+        ctx.clearRect(0, 0, viewportWidth, chartHeight);
         ctx.fillStyle = '#030712';
-        ctx.fillRect(0, 0, chartWidth, chartHeight);
+        ctx.fillRect(0, 0, viewportWidth, chartHeight);
+        ctx.save();
+        ctx.translate(-scrollLeft, 0);
 
         drawAxes(
         ctx,
@@ -1039,7 +1055,7 @@ export const overviewHtml = (): string => `
           hits.push({
             type: 'events',
             sessionId: session.sessionId,
-            x: x - 6,
+            x: x - scrollLeft - 6,
             y: y - 6,
             width: 12,
             height: 12,
@@ -1072,7 +1088,7 @@ export const overviewHtml = (): string => `
               sessionId: session.sessionId,
               segment,
               value: drawValue,
-              x: x - barWidth / 2,
+              x: x - scrollLeft - barWidth / 2,
               y: currentTop,
               width: barWidth,
               height: segmentHeight,
@@ -1107,7 +1123,7 @@ export const overviewHtml = (): string => `
             hits.push({
               type: 'compactions',
               sessionId: session.sessionId,
-              x: x - 10,
+              x: x - scrollLeft - 10,
               y: Math.max(8, plotHeight - barHeight - 22 - (compactionCount - 1) * 8),
               width: 20,
               height: 24 + Math.max(0, compactionCount - 1) * 8,
@@ -1118,8 +1134,7 @@ export const overviewHtml = (): string => `
         });
 
         state.hoverHits = hits;
-        const maxScroll = Math.max(1, scrollArea.scrollWidth - scrollArea.clientWidth);
-        scrollArea.scrollLeft = scrollRatio * maxScroll;
+        ctx.restore();
       };
 
       const hitTest = (event) => {
@@ -1162,11 +1177,25 @@ export const overviewHtml = (): string => `
         }
       };
 
+      let pendingRenderFrame = null;
+      const scheduleRenderChart = () => {
+        if (pendingRenderFrame !== null) {
+          return;
+        }
+        pendingRenderFrame = requestAnimationFrame(() => {
+          pendingRenderFrame = null;
+          safeRenderChart();
+        });
+      };
+
       scaleInput.addEventListener('input', () => {
         state.pxPerHour = Number(scaleInput.value);
         scaleValue.textContent = state.pxPerHour + ' px/hour';
-        safeRenderChart();
+        scheduleRenderChart();
       });
+
+      scrollArea.addEventListener('scroll', scheduleRenderChart);
+      window.addEventListener('resize', scheduleRenderChart);
 
       const loadOverview = async () => {
         const response = await fetch(apiPath('/api/sessions/overview'));
@@ -1176,7 +1205,7 @@ export const overviewHtml = (): string => `
         state.data = await response.json();
         setSummary(state.data.summary);
         renderRankingTable();
-        safeRenderChart();
+        scheduleRenderChart();
         const first = state.data.sessions[0];
         if (first) {
           setDetail(first.sessionId);
