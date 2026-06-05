@@ -984,8 +984,13 @@ export const overviewHtml = (): string => `
         chart.height = Math.round(chartHeight * dpr);
 
         const ctx = chart.getContext('2d');
+        if (!ctx) {
+          throw new Error('Canvas 2D context is not available');
+        }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, chartWidth, chartHeight);
+        ctx.fillStyle = '#030712';
+        ctx.fillRect(0, 0, chartWidth, chartHeight);
 
         drawAxes(
         ctx,
@@ -1078,7 +1083,7 @@ export const overviewHtml = (): string => `
                 '\\nsegment value: ' + drawValue +
                 '\\nreported totalTokens: ' + (session.finalTotalTokens ?? 'null') +
                 '\\nknown breakdown sum: ' + esc(String(session.knownBreakdownTokens ?? 'null')) +
-                '\nbreakdown mismatch: ' + (session.breakdownMismatchTokens ?? 'null') +
+                '\\nbreakdown mismatch: ' + (session.breakdownMismatchTokens ?? 'null') +
                 '\\nevents: ' + session.events +
                 '\\ncompactions: ' + session.compactions +
                 '\\nlikelyDriver: ' + (session.likelyDriver ?? 'null') +
@@ -1145,10 +1150,22 @@ export const overviewHtml = (): string => `
         node.addEventListener('mouseleave', hideTooltip);
       });
 
+      const safeRenderChart = () => {
+        try {
+          renderChart();
+        } catch (error) {
+          console.error(error);
+          detail.innerHTML =
+            '<div class="detail-empty">Failed to render overview chart: ' +
+            esc(error instanceof Error ? error.message : String(error)) +
+            '</div>';
+        }
+      };
+
       scaleInput.addEventListener('input', () => {
         state.pxPerHour = Number(scaleInput.value);
         scaleValue.textContent = state.pxPerHour + ' px/hour';
-        renderChart();
+        safeRenderChart();
       });
 
       const loadOverview = async () => {
@@ -1159,7 +1176,7 @@ export const overviewHtml = (): string => `
         state.data = await response.json();
         setSummary(state.data.summary);
         renderRankingTable();
-        renderChart();
+        safeRenderChart();
         const first = state.data.sessions[0];
         if (first) {
           setDetail(first.sessionId);

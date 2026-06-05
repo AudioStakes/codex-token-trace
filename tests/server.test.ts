@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +17,21 @@ const writeJsonl = (rows: Array<Record<string, unknown>>): string => {
   const path = join(dir, "rollout-test-session.jsonl");
   writeFileSync(path, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`);
   return path;
+};
+
+const extractSingleScript = (html: string): string => {
+  const match = html.match(/<script[^>]*>([\s\S]*?)<\/script>/);
+  expect(match).not.toBeNull();
+  return match?.[1] ?? "";
+};
+
+const assertScriptParses = (script: string): void => {
+  const dir = mkdtempSync(join(tmpdir(), "ctt-overview-script-"));
+  const path = join(dir, "overview.js");
+  writeFileSync(path, script, "utf8");
+  const result = spawnSync("node", ["--check", path], { encoding: "utf8" });
+  expect(result.status).toBe(0);
+  expect(result.stderr).toBe("");
 };
 
 const tokenCount = (
@@ -231,6 +247,9 @@ describe("serve command and server app", () => {
     expect(html).toContain("legend");
     expect(html).toContain("median/session");
     expect(html).toContain("sessions with compaction");
+
+    const script = extractSingleScript(html);
+    assertScriptParses(script);
   });
 
   it("returns session summary and normalized pressure series", async () => {
