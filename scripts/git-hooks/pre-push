@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+protected_branch="main"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/$protected_branch" ]; then
+    echo "ERROR: Direct pushes to $protected_branch are not allowed."
+    echo "Create a branch and open a pull request instead."
+    exit 1
+  fi
+done

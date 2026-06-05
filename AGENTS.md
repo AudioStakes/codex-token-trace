@@ -16,28 +16,43 @@ Use repository-local skill documents when relevant. These files are the source o
 When a prompt mentions `/tdd`, read and follow `docs/agent-skills/tdd.md`.
 When a prompt mentions `/grill-with-docs`, read and follow `docs/agent-skills/grill-with-docs.md`.
 
+## Communication style
+
+Use an extremely compressed style for user-facing replies.
+
+Remove greetings, filler, excessive politeness, hedging, and redundant words; prefer short direct sentences, compact technical wording, arrows, and abbreviations when clear.
+
+Do not compress code, command output, errors, file contents, docs, commits, or PR text; use normal clear prose when compression would hurt correctness, safety, or clarity.
+
 ## Default workflow
 
 - Use the repository-local TDD workflow in `docs/agent-skills/tdd.md` for implementation work.
-- Start by adding or updating tests that describe the intended behavior.
-- Implement the smallest change that makes the tests pass.
+- Add or update tests that describe intended behavior when the change calls for test coverage.
+- Implement the smallest change that satisfies the requested behavior.
 - Keep parser behavior, report behavior, and CLI behavior separately testable.
 - Prefer small, reviewable changes over broad rewrites.
 
 ## Verification
 
-Run focused automated tests while developing.
+Final verification is handled by the Codex Stop hook.
 
-Before completing work, the Codex Stop hook runs the repository auto-fix stage. Include any resulting changes in the final diff.
+Do not run focused tests, full tests, lint, typecheck, formatting checks, or other routine verification commands during normal development unless they are specifically needed for debugging or investigation.
 
-The final verification gate is enforced by the Codex Stop hook. A task is not complete unless the hook-managed verification succeeds. Do not bypass the hook, relax checks, or report completion after a failed verification.
+## Git and PR workflow
+
+Before finishing work:
+
+- Commit the final changes.
+- Push the current branch.
+- Create a pull request, or update the existing pull request for the current branch.
+
+If currently on `main`, create or switch to a non-`main` work branch before committing.
 
 ## Formatting and linting
 
 - Follow `.editorconfig` and `biome.json`.
-- Use Biome for formatting, linting, and import organization.
 - Do not manually fight the formatter; change the code shape instead.
-- Keep TypeScript strictness intact. Do not relax `tsconfig.json` or Biome rules unless there is a documented reason.
+- Do not relax `tsconfig.json` or Biome rules unless there is a documented reason.
 
 ## Testing expectations
 
@@ -108,14 +123,10 @@ _Avoid_: {discouraged synonym}, {discouraged synonym}
 After finishing work, include the normal summary plus these items:
 
 - What changed.
-- What checks were run and whether they passed.
-- Any decisions that were unclear or required judgment.
-- Any assumptions made without explicit user confirmation.
+- The pull request URL, or which existing PR was updated.
 - Any design decisions added to ADRs, or why none were added.
 - Any domain terms added to `CONTEXT.md`, or why none were added.
 - Any follow-up work that remains.
-
-Do not omit uncertainty. If something was guessed, say so.
 
 ## Safety and privacy
 
