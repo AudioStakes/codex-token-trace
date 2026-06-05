@@ -11,6 +11,7 @@ import type {
   SessionsOverviewResponse,
   SessionView,
 } from "../src/server-model.js";
+import { overviewClientScript } from "../src/server-ui/overview-client.js";
 
 const writeJsonl = (rows: Array<Record<string, unknown>>): string => {
   const dir = mkdtempSync(join(tmpdir(), "ctt-server-"));
@@ -261,6 +262,7 @@ describe("serve command and server app", () => {
 
     const script = extractSingleScript(html);
     assertScriptParses(script);
+    assertScriptParses(overviewClientScript());
     expect(script).toContain("chartSpacer.style.width = chartWidth + 'px';");
     expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
     expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { overviewBodyMarkup } from "../src/server-ui/overview-markup.js";
 import { escapeAttr, escapeHtml, help } from "../src/server-ui/shared.js";
 
 describe("server UI helpers", () => {
@@ -17,5 +18,13 @@ describe("server UI helpers", () => {
     expect(html).toContain(`data-tip="a &quot;quoted&quot; &lt;tip&gt; &#39;x&#39;"`);
     expect(html).not.toContain(`<tip>`);
     expect(html).not.toContain(`"quoted"`);
+  });
+
+  it("renders overview body markup", () => {
+    const html = overviewBodyMarkup();
+    expect(html).toContain('id="chart-spacer"');
+    expect(html).toContain('type="range"');
+    expect(html).toContain("X: session start time");
+    expect(html).toContain("legend");
   });
 });
