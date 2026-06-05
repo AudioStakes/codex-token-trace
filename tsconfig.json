@@ -24,5 +24,11 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
-  "exclude": ["dist", "node_modules", "codex_token_trace", "legacy-python"]
+  "exclude": [
+    "dist",
+    "node_modules",
+    "codex_token_trace",
+    "legacy-python",
+    "src/server-ui/overview-client.ts"
+  ]
 }

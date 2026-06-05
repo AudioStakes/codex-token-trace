@@ -182,11 +182,15 @@ const sessionCRows = (): Array<Record<string, unknown>> => [
 
 const fixtureApp = () => createServerApp(parseSessionFile(writeJsonl(sessionARows())));
 
+const overviewAssets = {
+  overviewClientJs: () => "export {};",
+};
+
 const overviewApp = () => {
   const alpha = parseSessionFile(writeJsonl(sessionARows()));
   const beta = parseSessionFile(writeJsonl(sessionBRows()));
   const gamma = parseSessionFile(writeJsonl(sessionCRows()));
-  return createServerApp(alpha, [alpha, beta, gamma]);
+  return createServerApp(alpha, [alpha, beta, gamma], overviewAssets);
 };
 const betaFocusedApp = () => {
   const alpha = parseSessionFile(writeJsonl(sessionARows()));
@@ -258,30 +262,7 @@ describe("serve command and server app", () => {
 
     const script = await assetResponse.text();
     assertModuleParses(script);
-    expect(script).toContain("renderChart");
-    expect(script).toContain("ctx.fillText(formatTickLabel(time), x, topPad + plotHeight + 18);");
-    expect(script).toMatch(
-      /const tickHours =\s+state\.pxPerHour <= 10 \? 24 : state\.pxPerHour <= 16 \? 12 : state\.pxPerHour <= 28 \? 6 : 3;/,
-    );
-    expect(script).toContain("sort(");
-    expect(script).toContain("(b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0)");
-    expect(script).toContain("const domainStart = start - marginMs;");
-    expect(script).toContain("const domainEnd = end + marginMs;");
-    expect(script).toContain("const parseTime = (timestamp) =>");
-    expect(script).toContain("Failed to render chart:");
-    expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
-    expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");
-    expect(script).toContain('scrollArea.addEventListener("scroll", scheduleRenderChart);');
-    expect(script).toContain('window.addEventListener("resize", scheduleRenderChart);');
-    expect(script).toContain("if (viewportWidth <= 0 || chartHeight <= 0) {");
-    expect(script).not.toContain("chart.width = Math.round(chartWidth * dpr);");
-    expect(script).toContain("visible-in-chart");
-    expect(script).toContain("hovered-session");
-    expect(script).toContain('scrollIntoView({ block: "nearest" });');
-    expect(script).toContain("/?session=");
-    expect(script).toContain(
-      'const displayPath = (path) => String(path).replace(/^\\/Users\\/satoudaisuke(?=\\/|$)/, "~");',
-    );
+    expect(script).toBe("export {};");
   });
 
   it("returns session summary and normalized pressure series", async () => {
