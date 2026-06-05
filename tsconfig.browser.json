@@ -13,5 +13,5 @@
     "types": []
   },
   "exclude": ["dist", "node_modules", "codex_token_trace", "legacy-python"],
-  "include": ["src/server-ui/overview-client.ts"]
+  "include": ["src/server-ui/overview-client.ts", "src/server-ui/single-session-client.ts"]
 }

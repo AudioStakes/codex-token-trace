@@ -1,9 +1,13 @@
 import { serve } from "@hono/node-server";
-import { type Context, Hono } from "hono";
+import type { Context } from "hono";
+import { Hono } from "hono";
 
 import type { SessionAnalysis } from "./models.js";
 import { eventList, findEventDetail, sessionsOverview, sessionView } from "./server-model.js";
-import { overviewClientJs as readOverviewClientJs } from "./server-ui/overview-client-asset.js";
+import {
+  overviewClientJs as readOverviewClientJs,
+  singleSessionClientJs as readSingleSessionClientJs,
+} from "./server-ui/client-assets.js";
 import { overviewHtml, serverHtml } from "./server-ui.js";
 
 const numberQuery = (value: string | undefined): number | null => {
@@ -44,25 +48,24 @@ const selectAnalysis = (
 
 export type ServerAssets = {
   overviewClientJs: () => string;
+  singleSessionClientJs: () => string;
 };
 
 const defaultServerAssets: ServerAssets = {
   overviewClientJs: readOverviewClientJs,
+  singleSessionClientJs: readSingleSessionClientJs,
 };
 
-const jsonError = (context: Context, status: 400 | 404, message: string): Response =>
-  context.body(JSON.stringify({ error: message }), status, {
-    "Content-Type": "application/json; charset=utf-8",
-  });
+type JsonErrorStatus = 400 | 404 | 500;
 
-const jsonBody = (context: Context, value: unknown): Response =>
-  context.body(JSON.stringify(value), 200, {
-    "Content-Type": "application/json; charset=utf-8",
-  });
+const jsonError = (context: Context, status: JsonErrorStatus, message: string): Response =>
+  context.json({ error: message }, status);
+
+const jsonBody = <T extends object>(context: Context, body: T): Response => context.json(body);
 
 export const createServerApp = (
   selected: SessionAnalysis,
-  analyses: SessionAnalysis[] = [selected],
+  analyses: SessionAnalysis[],
   assets: ServerAssets = defaultServerAssets,
 ): Hono => {
   const app = new Hono();
@@ -73,6 +76,7 @@ export const createServerApp = (
 
   app.get("/", (context) => context.html(serverHtml()));
   app.get("/overview", (context) => context.html(overviewHtml()));
+
   app.get("/assets/overview-client.js", (context) => {
     try {
       return context.body(assets.overviewClientJs(), 200, {
@@ -83,16 +87,27 @@ export const createServerApp = (
         error instanceof Error
           ? error.message
           : "overview-client.js is missing. Run npm run build.";
-      return context.body(message, 500, {
-        "Content-Type": "text/plain; charset=utf-8",
+      return context.text(message, 500);
+    }
+  });
+
+  app.get("/assets/single-session-client.js", (context) => {
+    try {
+      return context.body(assets.singleSessionClientJs(), 200, {
+        "Content-Type": "text/javascript; charset=utf-8",
       });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "single-session-client.js is missing. Run npm run build.";
+      return context.text(message, 500);
     }
   });
 
   api.get("/session", (context) => {
-    const query = optionalQuery(context.req.query("session"));
-    const session = resolveSelected(query);
-    return jsonBody(context, sessionView(session));
+    const session = optionalQuery(context.req.query("session"));
+    return jsonBody(context, sessionView(resolveSelected(session)));
   });
 
   api.get("/sessions/overview", (context) => {
@@ -102,6 +117,7 @@ export const createServerApp = (
   api.get("/events", (context) => {
     const offset = numberQuery(context.req.query("offset"));
     const limit = numberQuery(context.req.query("limit"));
+
     return jsonBody(
       context,
       eventList(resolveSelected(optionalQuery(context.req.query("session"))), offset, limit),
@@ -132,7 +148,7 @@ export const createServerApp = (
 export const startServer = (
   selected: SessionAnalysis,
   port: number,
-  analyses: SessionAnalysis[] = [selected],
+  analyses: SessionAnalysis[],
 ): void => {
   const app = createServerApp(selected, analyses);
   serve({ fetch: app.fetch, port });
