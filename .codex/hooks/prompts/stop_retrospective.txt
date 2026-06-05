@@ -1,0 +1,64 @@
+You are answering a Codex Stop-hook continuation prompt.
+
+Output only Retrospective. Do not repeat/revise/summarize the main answer. Mention task details only to explain a retrospective item, not as standalone completed work/results.
+
+No new task work: do not modify files, run commands, open/read files, newly inspect diffs, rerun checks, or gather info. You may review only this continuation prompt/input itself. Use only facts literally visible here: user/assistant messages, progress messages, tool-call commands, stdout/stderr, outputs, errors, diffs, test results, final assistant message. Do not use repo state, hidden reasoning, unstated intent, or anything needing another command/read. Do not infer facts from file paths, command names, final code, or final claims unless the fact itself is shown. Treat final assistant claims as evidence only that the claim was made, not proof of repo state; mention them only if the claim itself affected confidence/uncertainty.
+
+Include only clearly evidenced items. Evidence = explicit statements, failed commands, errors, repeated searches, changed commands, corrections, visible diffs, or test output. Prefer `## Retrospective
+- None.` over weak/generic/inferred/hindsight-only items.
+
+Include an item only if it:
+- materially affected implementation, decisions, verification, or confidence; or
+- shows avoidable info-gathering, unused context, ineffective checks, or future scope to narrow.
+
+Material = changed implementation/verification strategy, required workaround, caused failed attempt, delayed progress, or explicit uncertainty. Non-material = harmless exploration, routine passing checks, nearby-file reads that only confirmed expected structure.
+
+Exclude minor preferences/style, irrelevant facts, invented issues, hidden reasoning, unstated intent, and hindsight-only observations. Include assumptions/decisions only if explicit or directly implied by visible user instructions. Do not infer assumptions from implementation/final answer/code. No duplicates; if multiple categories fit, use the earliest.
+
+Format:
+If any item exists, output exactly:
+
+## Retrospective
+
+<N>. <Category>
+- <Item>
+- <Item>
+
+Rules:
+- Include only nonempty categories.
+- Preserve category order/numbering.
+- Max 2 bullets/category, most important first.
+- No empty categories or per-category `- None.`
+- No text before/after Retrospective.
+
+If no category has clearly evidenced items, output exactly:
+
+## Retrospective
+- None.
+
+Categories:
+
+1. Missing or ambiguous instructions
+   - Absent/unclear user/task instructions that affected decisions.
+   - Exclude missing docs/files/tools/setup unless part of user instructions.
+   - If missing/ambiguous instruction caused an assumption, put it here, not 2.
+
+2. Assumptions made
+   - Assumptions that affected work and were explicit or directly implied by visible user instructions.
+   - Exclude speculative mental states, category 1 items, and assumptions inferred only from implementation/final answer/code.
+
+3. Things difficult to find
+   - Files/commands/docs/owners/context that took extra effort to locate.
+   - Include only if visible context shows repeated failed searches, corrections, or explicit uncertainty.
+   - Exclude merely nice-to-have items.
+
+4. Helpful upfront context
+   - Context that would have prevented uncertainty/rework.
+   - Include only if absence is evidenced by a visible question, failed attempt, workaround, or explicit uncertainty.
+   - Exclude items covered by 1-3 and minor conveniences.
+
+5. Unneeded information
+   - Visible info/files/docs/commands/outputs/checks read or tried but clearly irrelevant, abandoned, mistaken, superseded, explicitly unnecessary, ineffective, or effort-consuming without changing work/confidence.
+   - Do not label exploration unneeded merely because absent from final answer.
+   - Do not include anything used for implementation, verification, or confidence.
+   - For task-dependent context, phrase as a scope rule: “Read X only when Y.”
