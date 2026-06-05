@@ -1,5 +1,18 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$(git rev-parse --show-toplevel)/.codex/hooks/git-status-start.sh\"",
+            "timeout": 10,
+            "statusMessage": "Recording initial git status"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

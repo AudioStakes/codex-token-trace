@@ -11,6 +11,7 @@ import type {
   SessionsOverviewResponse,
   SessionView,
 } from "../src/server-model.js";
+import { overviewClientScript } from "../src/server-ui/overview-client.js";
 
 const writeJsonl = (rows: Array<Record<string, unknown>>): string => {
   const dir = mkdtempSync(join(tmpdir(), "ctt-server-"));
@@ -194,6 +195,12 @@ const overviewApp = () => {
   const gamma = parseSessionFile(writeJsonl(sessionCRows()));
   return createServerApp(alpha, [alpha, beta, gamma]);
 };
+const betaFocusedApp = () => {
+  const alpha = parseSessionFile(writeJsonl(sessionARows()));
+  const beta = parseSessionFile(writeJsonl(sessionBRows()));
+  const gamma = parseSessionFile(writeJsonl(sessionCRows()));
+  return createServerApp(beta, [alpha, beta, gamma]);
+};
 
 const json = async <T>(response: Response): Promise<T> => (await response.json()) as T;
 
@@ -221,6 +228,9 @@ describe("serve command and server app", () => {
     const html = await response.text();
     expect(html).toContain("Session timeline explorer");
     expect(html).toContain("Open multi-session overview");
+    expect(html).toContain("<style>");
+    expect(html).toContain("<script>");
+    expect(html).toContain(".tooltip");
   });
 
   it("returns HTML for GET /overview", async () => {
@@ -230,11 +240,13 @@ describe("serve command and server app", () => {
     const html = await response.text();
     expect(html).toContain("Multi-session overview");
     expect(html).toContain("overflow-x: auto");
+    expect(html).toContain("<style>");
     expect(html).toContain('id="chart-spacer"');
     expect(html).toContain('type="range"');
     expect(html).toContain("X: session start time");
     expect(html).toContain("Y (left): total tokens");
     expect(html).toContain("Y (right): events");
+    expect(html).toContain(".legend");
     expect(html).toMatch(
       /sort\(\s*\(a, b\) => \(b\.finalTotalTokens \?\? 0\) - \(a\.finalTotalTokens \?\? 0\)/,
     );
@@ -251,6 +263,7 @@ describe("serve command and server app", () => {
 
     const script = extractSingleScript(html);
     assertScriptParses(script);
+    assertScriptParses(overviewClientScript());
     expect(script).toContain("chartSpacer.style.width = chartWidth + 'px';");
     expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
     expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");
@@ -290,6 +303,20 @@ describe("serve command and server app", () => {
         expect.objectContaining({ lane: "compaction", kind: "compaction" }),
       ]),
     );
+  });
+
+  it("treats blank session query as omitted", async () => {
+    const response = await betaFocusedApp().request("/api/session?session=");
+    expect(response.status).toBe(200);
+
+    const data = await json<SessionView>(response);
+    expect(data.summary.finalTotalTokens).toBe(60);
+
+    const whitespaceResponse = await betaFocusedApp().request("/api/session?session=%20%20");
+    expect(whitespaceResponse.status).toBe(200);
+
+    const whitespaceData = await json<SessionView>(whitespaceResponse);
+    expect(whitespaceData.summary.finalTotalTokens).toBe(60);
   });
 
   it("returns preview-only event list and classified event kinds", async () => {
