@@ -239,25 +239,29 @@ describe("serve command and server app", () => {
 
     const html = await response.text();
     expect(html).toContain("Multi-session overview");
-    expect(html).toContain("overflow-x: auto");
+    expect(html).toContain("chart-footer");
     expect(html).toContain("<style>");
     expect(html).toContain('id="chart-spacer"');
+    expect(html).toContain('id="chart-error"');
+    expect(html).toContain('id="ranking-body"');
+    expect(html).toContain('id="tooltip"');
     expect(html).toContain('type="range"');
-    expect(html).toContain("X: session start time");
-    expect(html).toContain("Y (left): total tokens");
-    expect(html).toContain("Y (right): events");
+    expect(html).toContain("time scale");
+    expect(html).toContain("non-cached input");
+    expect(html).toContain("top command preview");
+    expect(html).not.toContain('id="detail"');
     expect(html).toContain(".legend");
-    expect(html).toMatch(
-      /sort\(\s*\(a, b\) => \(b\.finalTotalTokens \?\? 0\) - \(a\.finalTotalTokens \?\? 0\)/,
-    );
+    expect(html).toContain("visible-in-chart");
+    expect(html).toContain("hovered-session");
+    expect(html).toContain("sort(");
+    expect(html).toContain("(b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0)");
     expect(html).toContain("const domainStart = start - marginMs;");
     expect(html).toContain("const domainEnd = end + marginMs;");
     expect(html).toMatch(
       /const tickHours =\s+state\.pxPerHour <= 10 \? 24 : state\.pxPerHour <= 16 \? 12 : state\.pxPerHour <= 28 \? 6 : 3;/,
     );
-    expect(html).toContain("ctx.fillText(formatTickLabel(time), x, plotHeight + 8);");
+    expect(html).toContain("ctx.fillText(formatTickLabel(time), x, topPad + plotHeight + 18);");
     expect(html).toContain("adjustment");
-    expect(html).toContain("legend");
     expect(html).toContain("median/session");
     expect(html).toContain("sessions with compaction");
 
@@ -265,15 +269,21 @@ describe("serve command and server app", () => {
     assertScriptParses(script);
     assertScriptParses(overviewClientScript());
     expect(script).toContain("chartSpacer.style.width = chartWidth + 'px';");
+    expect(script).toContain("const parseTime = (timestamp) =>");
+    expect(script).toContain("Failed to render chart:");
     expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
     expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");
-    expect(script).toContain("ctx.translate(-scrollLeft, 0);");
     expect(script).toContain("scrollArea.addEventListener('scroll', scheduleRenderChart);");
     expect(script).toContain("window.addEventListener('resize', scheduleRenderChart);");
-    expect(script).toContain("if (viewportWidth <= 0 || chartHeight <= 0) return;");
+    expect(script).toContain("if (viewportWidth <= 0 || chartHeight <= 0) {");
     expect(script).not.toContain("chart.width = Math.round(chartWidth * dpr);");
-    expect(script).toContain("const first = [...state.data.sessions].sort(");
-    expect(script).toContain("(b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0)");
+    expect(script).toContain("visible-in-chart");
+    expect(script).toContain("hovered-session");
+    expect(script).toContain("scrollIntoView({ block: 'nearest' });");
+    expect(script).toContain("/?session=");
+    expect(script).toContain(
+      "const displayPath = (path) => String(path).replace(/^\\/Users\\/satoudaisuke(?=\\/|$)/, '~');",
+    );
   });
 
   it("returns session summary and normalized pressure series", async () => {
