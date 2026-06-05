@@ -1,4 +1,6 @@
-export const overviewClientScript = (): string => String.raw`
+// @ts-nocheck
+/// <reference lib="dom" />
+
 const tooltip = document.getElementById('tooltip');
 const chart = document.getElementById('chart');
 const chartError = document.getElementById('chart-error');
@@ -127,7 +129,7 @@ const getRows = () => Array.from(rankingBody.querySelectorAll('tr[data-session-i
 
 const findRowBySessionId = (sessionId) => getRows().find((row) => row.dataset.sessionId === sessionId) ?? null;
 
-const updateRowClasses = () => {
+export const updateRowClasses = () => {
   getRows().forEach((row) => {
     const sessionId = row.dataset.sessionId;
     row.classList.toggle('visible-in-chart', state.visibleSessionIds.has(sessionId));
@@ -169,7 +171,7 @@ const setSummary = (summary) => {
   document.getElementById('summary-compactions').textContent = fmtInt(summary.sessionsWithCompaction);
 };
 
-const renderRankingTable = () => {
+export const renderRankingTable = () => {
   const sessions = [...state.data.sessions].sort(
     (a, b) =>
       (b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0) ||
@@ -304,7 +306,7 @@ const drawAxes = (ctx, width, height, leftPad, rightPad, topPad, plotHeight, plo
   ctx.restore();
 };
 
-const renderChart = () => {
+export const renderChart = () => {
   if (!state.data) {
     return;
   }
@@ -511,7 +513,7 @@ const renderChart = () => {
   ctx.restore();
 };
 
-const hitTest = (event) => {
+export const hitTest = (event) => {
   const rect = chart.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
@@ -530,7 +532,7 @@ const safeRenderChart = () => {
   }
 };
 
-const scheduleRenderChart = () => {
+export const scheduleRenderChart = () => {
   if (pendingRenderFrame !== null) {
     return;
   }
@@ -589,7 +591,7 @@ scaleInput.addEventListener('input', () => {
 scrollArea.addEventListener('scroll', scheduleRenderChart);
 window.addEventListener('resize', scheduleRenderChart);
 
-const loadOverview = async () => {
+export const loadOverview = async () => {
   const response = await fetch(apiPath('/api/sessions/overview'));
   if (!response.ok) {
     throw new Error('Request failed: ' + response.status);
@@ -605,4 +607,3 @@ loadOverview().catch((error) => {
   console.error(error);
   rankingBody.innerHTML = '<tr><td colspan="13" class="detail-empty">Failed to load overview: ' + esc(error.message) + '</td></tr>';
 });
-`;

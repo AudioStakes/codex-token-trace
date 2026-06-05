@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import type { SessionAnalysis } from "./models.js";
 import { eventList, findEventDetail, sessionsOverview, sessionView } from "./server-model.js";
 import { overviewHtml, serverHtml } from "./server-ui.js";
+import { overviewClientJs } from "./server-ui/assets.js";
 
 const numberQuery = (value: string | undefined): number | null => {
   if (value === undefined) return null;
@@ -40,6 +41,16 @@ export const createServerApp = (
 
   app.get("/", (context) => context.html(serverHtml()));
   app.get("/overview", (context) => context.html(overviewHtml()));
+  app.get("/assets/overview-client.js", (context) => {
+    try {
+      return context.body(overviewClientJs(), 200, {
+        "Content-Type": "text/javascript; charset=utf-8",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "overview-client.js is missing. Run npm run build.";
+      return context.text(message, 500);
+    }
+  });
 
   api.get("/session", (context) =>
     context.json(sessionView(resolveSelected(context.req.query("session") ?? null))),
