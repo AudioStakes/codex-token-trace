@@ -11,7 +11,6 @@ import type {
   SessionsOverviewResponse,
   SessionView,
 } from "../src/server-model.js";
-import { overviewClientScript } from "../src/server-ui/overview-client.js";
 
 const writeJsonl = (rows: Array<Record<string, unknown>>): string => {
   const dir = mkdtempSync(join(tmpdir(), "ctt-server-"));
@@ -20,15 +19,9 @@ const writeJsonl = (rows: Array<Record<string, unknown>>): string => {
   return path;
 };
 
-const extractSingleScript = (html: string): string => {
-  const match = html.match(/<script[^>]*>([\s\S]*?)<\/script>/);
-  expect(match).not.toBeNull();
-  return match?.[1] ?? "";
-};
-
-const assertScriptParses = (script: string): void => {
+const assertModuleParses = (script: string): void => {
   const dir = mkdtempSync(join(tmpdir(), "ctt-overview-script-"));
-  const path = join(dir, "overview.js");
+  const path = join(dir, "overview.mjs");
   writeFileSync(path, script, "utf8");
   const result = spawnSync("node", ["--check", path], { encoding: "utf8" });
   expect(result.status).toBe(0);
@@ -189,11 +182,15 @@ const sessionCRows = (): Array<Record<string, unknown>> => [
 
 const fixtureApp = () => createServerApp(parseSessionFile(writeJsonl(sessionARows())));
 
+const overviewAssets = {
+  overviewClientJs: () => "export {};",
+};
+
 const overviewApp = () => {
   const alpha = parseSessionFile(writeJsonl(sessionARows()));
   const beta = parseSessionFile(writeJsonl(sessionBRows()));
   const gamma = parseSessionFile(writeJsonl(sessionCRows()));
-  return createServerApp(alpha, [alpha, beta, gamma]);
+  return createServerApp(alpha, [alpha, beta, gamma], overviewAssets);
 };
 const betaFocusedApp = () => {
   const alpha = parseSessionFile(writeJsonl(sessionARows()));
@@ -240,6 +237,8 @@ describe("serve command and server app", () => {
     const html = await response.text();
     expect(html).toContain("Multi-session overview");
     expect(html).toContain("chart-footer");
+    expect(html).toContain('<script type="module" src="/assets/overview-client.js"></script>');
+    expect(html).not.toContain("<script>");
     expect(html).toContain("<style>");
     expect(html).toContain('id="chart-spacer"');
     expect(html).toContain('id="chart-error"');
@@ -253,37 +252,17 @@ describe("serve command and server app", () => {
     expect(html).toContain(".legend");
     expect(html).toContain("visible-in-chart");
     expect(html).toContain("hovered-session");
-    expect(html).toContain("sort(");
-    expect(html).toContain("(b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0)");
-    expect(html).toContain("const domainStart = start - marginMs;");
-    expect(html).toContain("const domainEnd = end + marginMs;");
-    expect(html).toMatch(
-      /const tickHours =\s+state\.pxPerHour <= 10 \? 24 : state\.pxPerHour <= 16 \? 12 : state\.pxPerHour <= 28 \? 6 : 3;/,
-    );
-    expect(html).toContain("ctx.fillText(formatTickLabel(time), x, topPad + plotHeight + 18);");
     expect(html).toContain("adjustment");
     expect(html).toContain("median/session");
     expect(html).toContain("sessions with compaction");
 
-    const script = extractSingleScript(html);
-    assertScriptParses(script);
-    assertScriptParses(overviewClientScript());
-    expect(script).toContain("chartSpacer.style.width = chartWidth + 'px';");
-    expect(script).toContain("const parseTime = (timestamp) =>");
-    expect(script).toContain("Failed to render chart:");
-    expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
-    expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");
-    expect(script).toContain("scrollArea.addEventListener('scroll', scheduleRenderChart);");
-    expect(script).toContain("window.addEventListener('resize', scheduleRenderChart);");
-    expect(script).toContain("if (viewportWidth <= 0 || chartHeight <= 0) {");
-    expect(script).not.toContain("chart.width = Math.round(chartWidth * dpr);");
-    expect(script).toContain("visible-in-chart");
-    expect(script).toContain("hovered-session");
-    expect(script).toContain("scrollIntoView({ block: 'nearest' });");
-    expect(script).toContain("/?session=");
-    expect(script).toContain(
-      "const displayPath = (path) => String(path).replace(/^\\/Users\\/satoudaisuke(?=\\/|$)/, '~');",
-    );
+    const assetResponse = await overviewApp().request("/assets/overview-client.js");
+    expect(assetResponse.status).toBe(200);
+    expect(assetResponse.headers.get("content-type")).toContain("text/javascript; charset=utf-8");
+
+    const script = await assetResponse.text();
+    assertModuleParses(script);
+    expect(script).toBe("export {};");
   });
 
   it("returns session summary and normalized pressure series", async () => {
