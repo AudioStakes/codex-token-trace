@@ -248,14 +248,6 @@ describe("serve command and server app", () => {
     expect(html).toContain(".legend");
     expect(html).toContain("visible-in-chart");
     expect(html).toContain("hovered-session");
-    expect(html).toContain("sort(");
-    expect(html).toContain("(b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0)");
-    expect(html).toContain("const domainStart = start - marginMs;");
-    expect(html).toContain("const domainEnd = end + marginMs;");
-    expect(html).toMatch(
-      /const tickHours =\s+state\.pxPerHour <= 10 \? 24 : state\.pxPerHour <= 16 \? 12 : state\.pxPerHour <= 28 \? 6 : 3;/,
-    );
-    expect(html).toContain("ctx.fillText(formatTickLabel(time), x, topPad + plotHeight + 18);");
     expect(html).toContain("adjustment");
     expect(html).toContain("median/session");
     expect(html).toContain("sessions with compaction");
@@ -267,20 +259,28 @@ describe("serve command and server app", () => {
     const script = await assetResponse.text();
     assertModuleParses(script);
     expect(script).toContain("renderChart");
+    expect(script).toContain("ctx.fillText(formatTickLabel(time), x, topPad + plotHeight + 18);");
+    expect(script).toMatch(
+      /const tickHours =\s+state\.pxPerHour <= 10 \? 24 : state\.pxPerHour <= 16 \? 12 : state\.pxPerHour <= 28 \? 6 : 3;/,
+    );
+    expect(script).toContain("sort(");
+    expect(script).toContain("(b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0)");
+    expect(script).toContain("const domainStart = start - marginMs;");
+    expect(script).toContain("const domainEnd = end + marginMs;");
     expect(script).toContain("const parseTime = (timestamp) =>");
     expect(script).toContain("Failed to render chart:");
     expect(script).toContain("chart.width = Math.round(viewportWidth * dpr);");
     expect(script).toContain("const scrollLeft = Math.max(0, scrollArea.scrollLeft);");
-    expect(script).toContain("scrollArea.addEventListener('scroll', scheduleRenderChart);");
-    expect(script).toContain("window.addEventListener('resize', scheduleRenderChart);");
+    expect(script).toContain('scrollArea.addEventListener("scroll", scheduleRenderChart);');
+    expect(script).toContain('window.addEventListener("resize", scheduleRenderChart);');
     expect(script).toContain("if (viewportWidth <= 0 || chartHeight <= 0) {");
     expect(script).not.toContain("chart.width = Math.round(chartWidth * dpr);");
     expect(script).toContain("visible-in-chart");
     expect(script).toContain("hovered-session");
-    expect(script).toContain("scrollIntoView({ block: 'nearest' });");
+    expect(script).toContain('scrollIntoView({ block: "nearest" });');
     expect(script).toContain("/?session=");
     expect(script).toContain(
-      "const displayPath = (path) => String(path).replace(/^\\/Users\\/satoudaisuke(?=\\/|$)/, '~');",
+      'const displayPath = (path) => String(path).replace(/^\\/Users\\/satoudaisuke(?=\\/|$)/, "~");',
     );
   });
 

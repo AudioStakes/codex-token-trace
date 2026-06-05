@@ -7,6 +7,7 @@ const currentDir = dirname(fileURLToPath(import.meta.url));
 export const readServerUiAsset = (filename: string): string => {
   const candidates = [
     join(currentDir, filename),
+    join(process.cwd(), "dist", "src", "server-ui", filename),
     join(process.cwd(), "dist", "server-ui", filename),
     join(process.cwd(), "src", "server-ui", filename),
   ];

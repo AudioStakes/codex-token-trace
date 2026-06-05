@@ -16,6 +16,7 @@
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsc -p tsconfig.json && node scripts/copy-server-ui-assets.mjs",
+    "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "biome format --write .",
