@@ -77,8 +77,8 @@ export const createServerApp = (
 
 export const startServer = (
   selected: SessionAnalysis,
-  analyses: SessionAnalysis[] = [selected],
   port: number,
+  analyses: SessionAnalysis[] = [selected],
 ): void => {
   const app = createServerApp(selected, analyses);
   serve({ fetch: app.fetch, port });
