@@ -16,28 +16,43 @@ Use repository-local skill documents when relevant. These files are the source o
 When a prompt mentions `/tdd`, read and follow `docs/agent-skills/tdd.md`.
 When a prompt mentions `/grill-with-docs`, read and follow `docs/agent-skills/grill-with-docs.md`.
 
+## Communication style
+
+Use an extremely compressed style for user-facing replies.
+
+Remove greetings, filler, excessive politeness, hedging, and redundant words; prefer short direct sentences, compact technical wording, arrows, and abbreviations when clear.
+
+Do not compress code, command output, errors, file contents, docs, commits, or PR text; use normal clear prose when compression would hurt correctness, safety, or clarity.
+
 ## Default workflow
 
 - Use the repository-local TDD workflow in `docs/agent-skills/tdd.md` for implementation work.
-- Start by adding or updating tests that describe the intended behavior.
-- Implement the smallest change that makes the tests pass.
+- Add or update tests that describe intended behavior when the change calls for test coverage.
+- Implement the smallest change that satisfies the requested behavior.
 - Keep parser behavior, report behavior, and CLI behavior separately testable.
 - Prefer small, reviewable changes over broad rewrites.
 
 ## Verification
 
-Run focused automated tests while developing.
+Final verification is handled by the Codex Stop hook.
 
-Before completing work, the Codex Stop hook runs the repository auto-fix stage. Include any resulting changes in the final diff.
+Do not run focused tests, full tests, lint, typecheck, formatting checks, or other routine verification commands during normal development unless they are specifically needed for debugging or investigation.
 
-The final verification gate is enforced by the Codex Stop hook. A task is not complete unless the hook-managed verification succeeds. Do not bypass the hook, relax checks, or report completion after a failed verification.
+## Git and PR workflow
+
+Before finishing work:
+
+- Commit the final changes.
+- Push the current branch.
+- Create a pull request, or update the existing pull request for the current branch.
+
+If currently on `main`, create or switch to a non-`main` work branch before committing.
 
 ## Formatting and linting
 
 - Follow `.editorconfig` and `biome.json`.
-- Use Biome for formatting, linting, and import organization.
 - Do not manually fight the formatter; change the code shape instead.
-- Keep TypeScript strictness intact. Do not relax `tsconfig.json` or Biome rules unless there is a documented reason.
+- Do not relax `tsconfig.json` or Biome rules unless there is a documented reason.
 
 ## Testing expectations
 
@@ -108,14 +123,10 @@ _Avoid_: {discouraged synonym}, {discouraged synonym}
 After finishing work, include the normal summary plus these items:
 
 - What changed.
-- What checks were run and whether they passed.
-- Any decisions that were unclear or required judgment.
-- Any assumptions made without explicit user confirmation.
+- The pull request URL, or which existing PR was updated.
 - Any design decisions added to ADRs, or why none were added.
 - Any domain terms added to `CONTEXT.md`, or why none were added.
 - Any follow-up work that remains.
-
-Do not omit uncertainty. If something was guessed, say so.
 
 ## Safety and privacy
 
@@ -136,3 +147,47 @@ Do not omit uncertainty. If something was guessed, say so.
   - output tokens,
   - reasoning output tokens.
 - Avoid mixing shell commands, custom tools, image tools, and patch tools into a single undifferentiated concept in reports.
+
+
+<!-- headroom:rtk-instructions -->
+# RTK (Rust Token Killer) - Token-Optimized Commands
+
+When running shell commands, **always prefix with `rtk`**. This reduces context
+usage by 60-90% with zero behavior change. If rtk has no filter for a command,
+it passes through unchanged — so it is always safe to use.
+
+## Key Commands
+```bash
+# Git (59-80% savings)
+rtk git status          rtk git diff            rtk git log
+
+# Files & Search (60-75% savings)
+rtk ls <path>           rtk read <file>         rtk grep <pattern>
+rtk find <pattern>      rtk diff <file>
+
+# Test (90-99% savings) — shows failures only
+rtk pytest tests/       rtk cargo test          rtk test <cmd>
+
+# Build & Lint (80-90% savings) — shows errors only
+rtk tsc                 rtk lint                rtk cargo build
+rtk prettier --check    rtk mypy                rtk ruff check
+
+# Analysis (70-90% savings)
+rtk err <cmd>           rtk log <file>          rtk json <file>
+rtk summary <cmd>       rtk deps                rtk env
+
+# GitHub (26-87% savings)
+rtk gh pr view <n>      rtk gh run list         rtk gh issue list
+
+# Infrastructure (85% savings)
+rtk docker ps           rtk kubectl get         rtk docker logs <c>
+
+# Package managers (70-90% savings)
+rtk pip list            rtk pnpm install        rtk npm run <script>
+```
+
+## Rules
+- In command chains, prefix each segment: `rtk git add . && rtk git commit -m "msg"`
+- For debugging, use raw command without rtk prefix
+- `rtk proxy <cmd>` runs command without filtering but tracks usage
+<!-- /headroom:rtk-instructions -->

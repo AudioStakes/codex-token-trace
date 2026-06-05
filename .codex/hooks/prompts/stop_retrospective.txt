@@ -1,0 +1,3 @@
+## Retrospective セクションのみ出力。新規作業・コマンド・ファイル読取・diff・確認はせず、main answer の反復/修正/要約もしない。
+根拠は prompt/messages/tool calls/stdout/stderr/errors/diffs/tests/final reply に明示されたものだけ。repo 状態・隠れた推論・暗黙の意図・path/claim からの推測は禁止。
+対象は明確な根拠のある重要項目のみ：1 Missing/ambiguous, 2 Assumptions, 3 Difficult to find, 4 Helpful upfront context, 5 Unneeded info。各カテゴリ最大2件、空なら省略。全空なら ## Retrospective\n- None.

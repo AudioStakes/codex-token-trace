@@ -5,9 +5,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_verify.sh\"",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_gate.py\"",
             "timeout": 600,
-            "statusMessage": "Running repository fix and verification gate"
+            "statusMessage": "Running final verification"
           }
         ]
       }
