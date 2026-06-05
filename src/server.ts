@@ -1,5 +1,6 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+
 import type { SessionAnalysis } from "./models.js";
 import { eventList, findEventDetail, sessionsOverview, sessionView } from "./server-model.js";
 import { overviewHtml, serverHtml } from "./server-ui.js";
@@ -13,8 +14,8 @@ const numberQuery = (value: string | undefined): number | null => {
 const selectAnalysis = (
   analyses: SessionAnalysis[],
   sessionQuery: string | null,
-): SessionAnalysis | null => {
-  if (sessionQuery === null || sessionQuery.trim() === "") return null;
+): SessionAnalysis | undefined => {
+  if (sessionQuery === null) return undefined;
 
   const exact = analyses.find(
     (analysis) => analysis.sessionId === sessionQuery || analysis.path === sessionQuery,
@@ -24,7 +25,7 @@ const selectAnalysis = (
   const partial = analyses.find(
     (analysis) => analysis.sessionId.includes(sessionQuery) || analysis.path.includes(sessionQuery),
   );
-  return partial ?? null;
+  return partial;
 };
 
 export const createServerApp = (
@@ -32,6 +33,7 @@ export const createServerApp = (
   analyses: SessionAnalysis[] = [selected],
 ): Hono => {
   const app = new Hono();
+  const api = new Hono();
 
   const resolveSelected = (sessionQuery: string | null): SessionAnalysis =>
     selectAnalysis(analyses, sessionQuery) ?? selected;
@@ -39,13 +41,13 @@ export const createServerApp = (
   app.get("/", (context) => context.html(serverHtml()));
   app.get("/overview", (context) => context.html(overviewHtml()));
 
-  app.get("/api/session", (context) =>
+  api.get("/session", (context) =>
     context.json(sessionView(resolveSelected(context.req.query("session") ?? null))),
   );
 
-  app.get("/api/sessions/overview", (context) => context.json(sessionsOverview(analyses)));
+  api.get("/sessions/overview", (context) => context.json(sessionsOverview(analyses)));
 
-  app.get("/api/events", (context) =>
+  api.get("/events", (context) =>
     context.json(
       eventList(
         resolveSelected(context.req.query("session") ?? null),
@@ -55,7 +57,7 @@ export const createServerApp = (
     ),
   );
 
-  app.get("/api/events/:line", (context) => {
+  api.get("/events/:line", (context) => {
     const line = Number(context.req.param("line"));
     if (!Number.isInteger(line)) {
       return context.json({ error: "Event line not found" }, 404);
@@ -69,13 +71,14 @@ export const createServerApp = (
     return context.json(detail);
   });
 
+  app.route("/api", api);
   return app;
 };
 
 export const startServer = (
   selected: SessionAnalysis,
-  analyses: SessionAnalysis[],
-  port: number,
+  analyses: SessionAnalysis[] = [selected],
+  port = Number(process.env.PORT ?? "3000"),
 ): void => {
   const app = createServerApp(selected, analyses);
   serve({ fetch: app.fetch, port });
