@@ -11,8 +11,7 @@ const readBrowserClientAsset = (filename: string): string => {
   return readFileSync(assetPath, "utf8");
 };
 
-export const overviewClientJs = (): string =>
-  readBrowserClientAsset("overview-client.js");
+export const overviewClientJs = (): string => readBrowserClientAsset("overview-client.js");
 
 export const singleSessionClientJs = (): string =>
   readBrowserClientAsset("single-session-client.js");

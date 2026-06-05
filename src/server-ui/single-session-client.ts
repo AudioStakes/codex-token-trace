@@ -82,15 +82,6 @@ type SeriesConfig = Readonly<{
   tooltip: string;
 }>;
 
-type LaneHit = Readonly<{
-  type: "lane-event";
-  event: TimelineLaneEvent;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}>;
-
 type GraphPointHit = Readonly<{
   type: "graph-point";
   point: PressurePoint;
@@ -100,7 +91,16 @@ type GraphPointHit = Readonly<{
   r: number;
 }>;
 
-type Hit = LaneHit | GraphPointHit;
+type LaneHit = Readonly<{
+  type: "lane-event";
+  event: TimelineLaneEvent;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}>;
+
+type Hit = GraphPointHit | LaneHit;
 
 type GraphScales = Readonly<{
   times: { min: number; max: number } | null;
@@ -277,14 +277,14 @@ const drawAxes = (
   ctx.font = "12px ui-sans-serif, system-ui";
   ctx.textBaseline = "middle";
 
-  [0, 20, 40, 60, 80, 100].forEach((tick) => {
+  for (const tick of [0, 20, 40, 60, 80, 100]) {
     const y = plotHeight - (tick / 100) * plotHeight;
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
     ctx.stroke();
     ctx.fillText(String(tick), 6, y);
-  });
+  }
 
   if (times === null) {
     return;
@@ -294,20 +294,16 @@ const drawAxes = (
   ctx.fillStyle = "#94a3b8";
   ctx.textAlign = "center";
 
-  [0, 1, 2, 3, 4].forEach((step) => {
+  for (const step of [0, 1, 2, 3, 4]) {
     const fraction = step / 4;
-    const x = (width * fraction);
+    const x = width * fraction;
     const time = times.min + (times.max - times.min) * fraction;
-    ctx.fillText(
-      new Date(time).toLocaleTimeString([], { hour12: false }),
-      x,
-      laneTop - 8,
-    );
+    ctx.fillText(new Date(time).toLocaleTimeString([], { hour12: false }), x, laneTop - 8);
     ctx.beginPath();
     ctx.moveTo(x, plotHeight);
     ctx.lineTo(x, plotHeight + 5);
     ctx.stroke();
-  });
+  }
 };
 
 const drawLine = (
@@ -322,10 +318,10 @@ const drawLine = (
   ctx.beginPath();
 
   let started = false;
-  points.forEach((point) => {
+  for (const point of points) {
     const value = point[config.key];
     if (value === null) {
-      return;
+      continue;
     }
 
     const x = leftPad + scales.xFor(point);
@@ -342,10 +338,14 @@ const drawLine = (
     ctx.beginPath();
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fill();
-  });
+  }
 };
 
-const drawGraph = (points: PressurePoint[], markers: TimelineMarker[], lanes: TimelineLaneEvent[]): void => {
+const renderChart = (
+  points: PressurePoint[],
+  markers: TimelineMarker[],
+  lanes: TimelineLaneEvent[],
+): void => {
   const canvas = requiredElement<HTMLCanvasElement>("pressure");
   const rect = canvas.getBoundingClientRect();
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -371,21 +371,25 @@ const drawGraph = (points: PressurePoint[], markers: TimelineMarker[], lanes: Ti
 
   state.hits = [];
   drawAxes(ctx, width, plotHeight, laneTop, scales.times);
-  seriesConfig.forEach((config) => drawLine(ctx, points, config, scales, leftPad));
+  for (const config of seriesConfig) {
+    drawLine(ctx, points, config, scales, leftPad);
+  }
 
-  markers.forEach((marker) => {
+  for (const marker of markers) {
     const x = leftPad + scales.xFor(marker);
     const y = plotHeight - 14;
     ctx.fillStyle = marker.kind === "large_event" ? "rgba(248, 113, 113, 0.65)" : "#fbbf24";
     ctx.beginPath();
     ctx.arc(x, y, marker.kind === "large_event" ? 3 : 2, 0, Math.PI * 2);
     ctx.fill();
-  });
+  }
 
   ctx.fillStyle = "#94a3b8";
   ctx.font = "12px ui-sans-serif, system-ui";
-  Object.entries(laneConfig).forEach(([, config], index) => {
-    const y = laneTop + index * 17;
+  let laneIndex = 0;
+  for (const config of Object.values(laneConfig)) {
+    const y = laneTop + laneIndex * 17;
+    laneIndex += 1;
     ctx.fillStyle = "#94a3b8";
     ctx.fillText(config.label, 4, y);
     ctx.strokeStyle = "rgba(148, 163, 184, 0.16)";
@@ -393,13 +397,13 @@ const drawGraph = (points: PressurePoint[], markers: TimelineMarker[], lanes: Ti
     ctx.moveTo(leftPad, y);
     ctx.lineTo(width, y);
     ctx.stroke();
-  });
+  }
 
-  lanes.forEach((event) => {
+  for (const event of lanes) {
     const config = laneConfig[event.lane];
-    const laneIndex = Object.keys(laneConfig).indexOf(event.lane);
+    const eventLaneIndex = Object.keys(laneConfig).indexOf(event.lane);
     const x = leftPad + scales.xFor(event);
-    const y = laneTop + laneIndex * 17 - 5;
+    const y = laneTop + eventLaneIndex * 17 - 5;
     const radius = event.lane === "token" ? 4 : 3;
 
     ctx.fillStyle = config.color;
@@ -415,13 +419,13 @@ const drawGraph = (points: PressurePoint[], markers: TimelineMarker[], lanes: Ti
       width: radius * 2 + 4,
       height: radius * 2 + 4,
     });
-  });
+  }
 
-  points.forEach((point) => {
-    seriesConfig.forEach((config) => {
+  for (const point of points) {
+    for (const config of seriesConfig) {
       const value = point[config.key];
       if (value === null) {
-        return;
+        continue;
       }
 
       const x = leftPad + scales.xFor(point);
@@ -434,8 +438,8 @@ const drawGraph = (points: PressurePoint[], markers: TimelineMarker[], lanes: Ti
         point,
         series: config,
       });
-    });
-  });
+    }
+  }
 };
 
 const canvasHit = (event: MouseEvent): Hit | null => {
@@ -443,20 +447,25 @@ const canvasHit = (event: MouseEvent): Hit | null => {
   const rect = canvas.getBoundingClientRect();
   const x = (event.clientX - rect.left) * (canvas.width / rect.width);
   const y = (event.clientY - rect.top) * (canvas.height / rect.height);
-  return (
-    state.hits.find((hit) => {
-      if (hit.type === "graph-point") {
-        return Math.hypot(hit.x - x, hit.y - y) <= hit.r;
-      }
 
-      return x >= hit.x && x <= hit.x + hit.width && y >= hit.y && y <= hit.y + hit.height;
-    }) ?? null
-  );
+  for (const hit of state.hits) {
+    if (hit.type === "graph-point") {
+      if (Math.hypot(hit.x - x, hit.y - y) <= hit.r) {
+        return hit;
+      }
+      continue;
+    }
+
+    if (x >= hit.x && x <= hit.x + hit.width && y >= hit.y && y <= hit.y + hit.height) {
+      return hit;
+    }
+  }
+
+  return null;
 };
 
 const clippedPre = (id: string, value: unknown): string => {
-  const text =
-    typeof value === "string" ? value : JSON.stringify(value, null, 2) ?? "null";
+  const text = typeof value === "string" ? value : (JSON.stringify(value, null, 2) ?? "null");
   const clipped = text.length > 5000;
   return `<pre id="${id}"${clipped ? ' data-full="true"' : ""}>${esc(
     clipped ? `${text.slice(0, 5000)}…` : text,
@@ -527,7 +536,7 @@ const renderEventRows = (events: EventListItem[]): void => {
     )
     .join("");
 
-  tbody.querySelectorAll<HTMLTableRowElement>("tr[data-line]").forEach((row) => {
+  for (const row of Array.from(tbody.querySelectorAll<HTMLTableRowElement>("tr[data-line]"))) {
     const line = Number(row.dataset.line);
     row.addEventListener("mousemove", (event) => {
       const item = events.find((eventItem) => eventItem.line === line);
@@ -539,11 +548,11 @@ const renderEventRows = (events: EventListItem[]): void => {
     row.addEventListener("click", () => {
       void loadDetail(line);
     });
-  });
+  }
 };
 
 const renderHelpTooltips = (): void => {
-  document.querySelectorAll<HTMLElement>("[data-tip].help").forEach((node) => {
+  for (const node of Array.from(document.querySelectorAll<HTMLElement>("[data-tip].help"))) {
     node.addEventListener("mousemove", (event) => {
       const tip = node.getAttribute("data-tip");
       if (tip !== null) {
@@ -551,7 +560,7 @@ const renderHelpTooltips = (): void => {
       }
     });
     node.addEventListener("mouseleave", hideTooltip);
-  });
+  }
 };
 
 const renderPageRange = (total: number, offset: number, limit: number, count: number): void => {
@@ -572,14 +581,10 @@ const renderDetail = (title: string, summary: string, payload: unknown): void =>
 
 const loadDetail = async (line: number): Promise<void> => {
   const detail = await getJson<EventDetailResponse>(`/api/events/${line}`);
-  renderDetail(
-    `Line ${detail.line} · ${detail.kind}`,
-    eventText(detail),
-    {
-      metadata: detail.extracted,
-      raw: detail.raw,
-    },
-  );
+  renderDetail(`Line ${detail.line} · ${detail.kind}`, eventText(detail), {
+    metadata: detail.extracted,
+    raw: detail.raw,
+  });
 };
 
 const loadSession = async (): Promise<void> => {
@@ -594,10 +599,10 @@ const loadSession = async (): Promise<void> => {
   );
   requiredElement<HTMLSpanElement>("compactions").textContent = fmt(data.summary.compactionCount);
   requiredElement<HTMLSpanElement>("events-count").textContent = fmt(data.summary.events);
-  drawGraph(data.pressureSeries, data.markers, data.timelineLaneEvents);
+  renderChart(data.pressureSeries, data.markers, data.timelineLaneEvents);
 };
 
-const loadEvents = async (): Promise<void> => {
+const renderEvents = async (): Promise<void> => {
   const data = await getJson<EventListResponse>(
     `/api/events?offset=${state.offset}&limit=${state.limit}`,
   );
@@ -640,7 +645,7 @@ requiredElement<HTMLButtonElement>("prev").addEventListener("click", async () =>
   }
 
   state.offset = Math.max(0, state.offset - state.limit);
-  await loadEvents();
+  await renderEvents();
 });
 
 requiredElement<HTMLButtonElement>("next").addEventListener("click", async () => {
@@ -649,10 +654,10 @@ requiredElement<HTMLButtonElement>("next").addEventListener("click", async () =>
   }
 
   state.offset += state.limit;
-  await loadEvents();
+  await renderEvents();
 });
 
-void Promise.all([loadSession(), loadEvents()]).catch((error: unknown) => {
+void Promise.all([loadSession(), renderEvents()]).catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   requiredElement<HTMLTableSectionElement>("events").innerHTML =
     `<tr><td colspan="7" class="detail-empty">Failed to load events: ${esc(message)}</td></tr>`;

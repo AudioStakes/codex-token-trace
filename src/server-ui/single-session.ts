@@ -1,6 +1,6 @@
 import { singleSessionCss } from "./assets.js";
-import { singleSessionBodyMarkup } from "./single-session-markup.js";
 import { indentLines } from "./shared.js";
+import { singleSessionBodyMarkup } from "./single-session-markup.js";
 
 export const singleSessionHtml = (): string => `<!doctype html>
 <html lang="en">

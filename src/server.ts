@@ -1,14 +1,9 @@
 import { serve } from "@hono/node-server";
-import { Hono } from "hono";
 import type { Context } from "hono";
+import { Hono } from "hono";
 
 import type { SessionAnalysis } from "./models.js";
-import {
-  eventList,
-  findEventDetail,
-  sessionsOverview,
-  sessionView,
-} from "./server-model.js";
+import { eventList, findEventDetail, sessionsOverview, sessionView } from "./server-model.js";
 import {
   overviewClientJs as readOverviewClientJs,
   singleSessionClientJs as readSingleSessionClientJs,
@@ -46,8 +41,7 @@ const selectAnalysis = (
   }
 
   const partial = analyses.find(
-    (analysis) =>
-      analysis.sessionId.includes(sessionQuery) || analysis.path.includes(sessionQuery),
+    (analysis) => analysis.sessionId.includes(sessionQuery) || analysis.path.includes(sessionQuery),
   );
   return partial ?? selected;
 };
@@ -136,7 +130,10 @@ export const createServerApp = (
       return jsonError(context, 400, "line parameter must be a number");
     }
 
-    const detail = findEventDetail(resolveSelected(optionalQuery(context.req.query("session"))), line);
+    const detail = findEventDetail(
+      resolveSelected(optionalQuery(context.req.query("session"))),
+      line,
+    );
     if (detail === null) {
       return jsonError(context, 404, "Event line not found");
     }

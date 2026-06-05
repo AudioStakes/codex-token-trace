@@ -8,8 +8,10 @@ import { singleSessionBodyMarkup } from "../src/server-ui/single-session-markup.
 
 describe("server UI helpers", () => {
   it("escapes HTML text content", () => {
-    expect(escapeHtml(`a "quoted" <tip>
-<line>`)).toBe('a "quoted" &lt;tip&gt;\n&lt;line&gt;');
+    expect(
+      escapeHtml(`a "quoted" <tip>
+<line>`),
+    ).toBe('a "quoted" &lt;tip&gt;\n&lt;line&gt;');
   });
 
   it("escapes attribute content", () => {
@@ -42,9 +44,13 @@ describe("server UI helpers", () => {
   });
 
   it("keeps the single-session client module syntactically valid", () => {
-    const result = spawnSync("node", ["./node_modules/typescript/bin/tsc", "-p", "tsconfig.browser.json", "--noEmit"], {
-      encoding: "utf8",
-    });
+    const result = spawnSync(
+      "node",
+      ["./node_modules/typescript/bin/tsc", "-p", "tsconfig.browser.json", "--noEmit"],
+      {
+        encoding: "utf8",
+      },
+    );
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
