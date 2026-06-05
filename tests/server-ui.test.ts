@@ -29,8 +29,12 @@ describe("server UI helpers", () => {
   it("renders overview body markup", () => {
     const html = overviewBodyMarkup();
     expect(html).toContain('id="chart-spacer"');
+    expect(html).toContain('id="ranking-body"');
+    expect(html).toContain('id="tooltip"');
     expect(html).toContain('type="range"');
-    expect(html).toContain("X: session start time");
+    expect(html).toContain("time scale");
+    expect(html).toContain("top command preview");
+    expect(html).not.toContain('id="detail"');
     expect(html).toContain("legend");
   });
 
