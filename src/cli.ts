@@ -238,7 +238,7 @@ export const run = (argv: string[]): number => {
 
   const analysis = pickSession(analyses, args.session);
   if (args.command === "serve") {
-    startServer(analysis, args.port);
+    startServer(analysis, analyses, args.port);
   } else if (args.command === "diagnose") {
     console.log(diagnosisReport(analysis, args.limit));
   } else if (args.command === "analyze") {

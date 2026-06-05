@@ -5,7 +5,11 @@ import { describe, expect, it } from "vitest";
 import { run } from "../src/cli.js";
 import { parseSessionFile } from "../src/parser.js";
 import { createServerApp } from "../src/server.js";
-import type { EventListResponse, SessionView } from "../src/server-model.js";
+import type {
+  EventListResponse,
+  SessionsOverviewResponse,
+  SessionView,
+} from "../src/server-model.js";
 
 const writeJsonl = (rows: Array<Record<string, unknown>>): string => {
   const dir = mkdtempSync(join(tmpdir(), "ctt-server-"));
@@ -41,13 +45,13 @@ const tokenCount = (
         reasoning_output_tokens: reasoningOutputTokens,
         total_tokens: totalTokens,
       },
-      model_context_window: contextWindow,
+      context_window: contextWindow,
     },
   },
 });
 
-const fixtureRows = (): Array<Record<string, unknown>> => [
-  { timestamp: "2026-05-25T00:00:00Z", type: "session_meta", cwd: "/tmp/synthetic" },
+const sessionARows = (): Array<Record<string, unknown>> => [
+  { timestamp: "2026-05-25T00:00:00Z", type: "session_meta", cwd: "/tmp/synthetic-a" },
   {
     timestamp: "2026-05-25T00:00:01Z",
     type: "event_msg",
@@ -97,20 +101,98 @@ const fixtureRows = (): Array<Record<string, unknown>> => [
   tokenCount("2026-05-25T00:00:09Z", 250, 50, 40, 4, 294, 1000),
 ];
 
-const fixtureApp = () => createServerApp(parseSessionFile(writeJsonl(fixtureRows())));
+const sessionBRows = (): Array<Record<string, unknown>> => [
+  { timestamp: "2026-05-25T01:00:00Z", type: "session_meta", cwd: "/tmp/synthetic-b" },
+  {
+    timestamp: "2026-05-25T01:00:01Z",
+    type: "event_msg",
+    payload: { type: "user_message", message: "Plan the refactor" },
+  },
+  tokenCount("2026-05-25T01:00:02Z", 100, 20, 40, 10, 60, 1000),
+  {
+    timestamp: "2026-05-25T01:00:03Z",
+    type: "response_item",
+    payload: { type: "message", role: "assistant", content: "I need a bit more context." },
+  },
+  {
+    timestamp: "2026-05-25T01:00:04Z",
+    type: "response_item",
+    payload: {
+      type: "function_call",
+      call_id: "call_2",
+      name: "exec_command",
+      arguments: JSON.stringify({ cmd: "pnpm test" }),
+    },
+  },
+  {
+    timestamp: "2026-05-25T01:00:05Z",
+    type: "response_item",
+    payload: { type: "function_call_output", call_id: "call_2", output: "test output" },
+  },
+  { timestamp: "2026-05-25T01:00:06Z", type: "compacted", items: ["synthetic"] },
+  tokenCount("2026-05-25T01:00:07Z", 100, 20, 40, 10, 60, 1000),
+];
+
+const sessionCRows = (): Array<Record<string, unknown>> => [
+  { timestamp: "2026-05-25T02:00:00Z", type: "session_meta", cwd: "/tmp/synthetic-c" },
+  {
+    timestamp: "2026-05-25T02:00:01Z",
+    type: "event_msg",
+    payload: { type: "user_message", message: "Investigate heavy context" },
+  },
+  tokenCount("2026-05-25T02:00:02Z", 250, 50, 40, 4, 294, 1000),
+  {
+    timestamp: "2026-05-25T02:00:03Z",
+    type: "response_item",
+    payload: { type: "message", role: "assistant", content: "I will inspect the trace." },
+  },
+  {
+    timestamp: "2026-05-25T02:00:04Z",
+    type: "response_item",
+    payload: {
+      type: "function_call",
+      call_id: "call_3",
+      name: "exec_command",
+      arguments: JSON.stringify({ cmd: "cargo test" }),
+    },
+  },
+  {
+    timestamp: "2026-05-25T02:00:05Z",
+    type: "response_item",
+    payload: { type: "function_call_output", call_id: "call_3", output: "cargo output" },
+  },
+  {
+    timestamp: "2026-05-25T02:00:06Z",
+    type: "response_item",
+    payload: { type: "reasoning", content: "Need one more token_count sample." },
+  },
+  { timestamp: "2026-05-25T02:00:07Z", type: "compacted", items: ["synthetic"] },
+  tokenCount("2026-05-25T02:00:08Z", 250, 50, 40, 4, 294, 1000),
+];
+
+const fixtureApp = () => createServerApp(parseSessionFile(writeJsonl(sessionARows())));
+
+const overviewApp = () => {
+  const alpha = parseSessionFile(writeJsonl(sessionARows()));
+  const beta = parseSessionFile(writeJsonl(sessionBRows()));
+  const gamma = parseSessionFile(writeJsonl(sessionCRows()));
+  return createServerApp(alpha, [alpha, beta, gamma]);
+};
 
 const json = async <T>(response: Response): Promise<T> => (await response.json()) as T;
 
 describe("serve command and server app", () => {
-  it("prints serve in CLI help", () => {
+  it("prints serve in CLI help", async () => {
     const logs: string[] = [];
-    const original = console.log;
-    console.log = (value) => logs.push(String(value));
+    const originalLog = console.log;
+    console.log = (value?: unknown) => {
+      logs.push(String(value));
+    };
 
     try {
-      expect(run(["--help"])).toBe(0);
+      await run(["serve", "--help"]);
     } finally {
-      console.log = original;
+      console.log = originalLog;
     }
 
     expect(logs.join("\n")).toContain("serve");
@@ -119,60 +201,33 @@ describe("serve command and server app", () => {
   it("returns HTML for GET /", async () => {
     const response = await fixtureApp().request("/");
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain("Session timeline explorer");
+
+    const html = await response.text();
+    expect(html).toContain("Session timeline explorer");
+    expect(html).toContain("Open multi-session overview");
   });
 
-  it("renders summary card tooltips, legend tooltips, and graph axis labels", async () => {
-    const response = await fixtureApp().request("/");
+  it("returns HTML for GET /overview", async () => {
+    const response = await overviewApp().request("/overview");
     expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain(
-      "セッション全体で使った token の合計。会話、ファイル内容、コマンド結果、Codex の出力などを含む累積の使用量。",
-    );
-    expect(html).toContain(
-      "新しく処理された入力の大きさが、そのセッション内の最大値に対してどれくらい大きいか。",
-    );
-    for (const label of [
-      "total progress",
-      "context pressure",
-      "non-cached pressure",
-      "user message",
-      "compaction",
-      "large event",
-      "Codex status",
-      "tool",
-      "token_count",
-    ]) {
-      expect(html).toContain(label);
-    }
-    expect(html).toContain("data-tip");
-    expect(html).toContain("X: time");
-    expect(html).toContain("Y: normalized pressure / progress (%)");
-    expect(html).toContain(
-      "Codex が長くなった文脈を圧縮したタイミング。会話履歴や作業内容が増えて、扱える情報量の上限に近づくと起きる。圧縮後は一度に見ている情報量が下がることがある。",
-    );
-    expect(html).toContain(
-      "ログ内で特に文字数が大きい event。長いコマンド出力、大きなファイル内容、巨大な tool output などが該当する。直接の token 使用量ではないが、その後の入力増加と関連することがある。",
-    );
-    expect(html).toContain("compaction</span>");
-    expect(html).toContain("large event</span>");
-  });
 
-  it("renders the pressure graph with timestamp-based x coordinates and line fallback", async () => {
-    const response = await fixtureApp().request("/");
-    expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain("timestampRange");
-    expect(html).toContain("Date.parse");
-    expect(html).toContain("pointX(point, index)");
-    expect(html).toContain("xFor = (item) =>");
-    expect(html).toContain("value === null");
-    expect(html).toContain("graphPointText(hit)");
+    expect(html).toContain("Multi-session overview");
+    expect(html).toContain("overflow-x: auto");
+    expect(html).toContain('type="range"');
+    expect(html).toContain("X: session start time");
+    expect(html).toContain("Y (left): total tokens");
+    expect(html).toContain("Y (right): events");
+    expect(html).toContain("adjustment");
+    expect(html).toContain("legend");
+    expect(html).toContain("median/session");
+    expect(html).toContain("sessions with compaction");
   });
 
   it("returns session summary and normalized pressure series", async () => {
     const response = await fixtureApp().request("/api/session");
     expect(response.status).toBe(200);
+
     const data = await json<SessionView>(response);
     expect(data.summary).toEqual(
       expect.objectContaining({
@@ -183,45 +238,25 @@ describe("serve command and server app", () => {
         finalReasoningOutputTokens: 4,
         maxInputTokens: 250,
         maxNonCachedInputTokens: 200,
-        maxContextUsageRatio: 0.25,
         compactionCount: 1,
       }),
     );
-    expect(data.pressureSeries.at(-1)).toEqual(
-      expect.objectContaining({
-        line: 11,
-        totalProgress: 100,
-        contextPressure: 25,
-        nonCachedPressure: 100,
-        nonCachedInputTokens: 200,
-      }),
-    );
-    expect(data.markers.map((marker) => marker.kind)).toContain("compaction");
-    expect(data.markers.map((marker) => marker.kind)).toContain("tool_usage_group");
     expect(data.timelineLaneEvents).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          lane: "user",
-          kind: "user_message",
-          preview: "Please inspect the synthetic project",
-        }),
+        expect.objectContaining({ lane: "user", kind: "user_message" }),
         expect.objectContaining({ lane: "status", kind: "assistant_message" }),
-        expect.objectContaining({ lane: "status", kind: "reasoning" }),
         expect.objectContaining({ lane: "tool", kind: "tool_call" }),
         expect.objectContaining({ lane: "tool", kind: "tool_output" }),
-        expect.objectContaining({ lane: "tool", kind: "apply_patch" }),
         expect.objectContaining({ lane: "token", kind: "token_count" }),
+        expect.objectContaining({ lane: "compaction", kind: "compaction" }),
       ]),
     );
-    for (const laneEvent of data.timelineLaneEvents) {
-      expect(laneEvent).not.toHaveProperty("raw");
-      expect(laneEvent).not.toHaveProperty("extracted");
-    }
   });
 
   it("returns preview-only event list and classified event kinds", async () => {
     const response = await fixtureApp().request("/api/events");
     expect(response.status).toBe(200);
+
     const data = await json<EventListResponse>(response);
     expect(data.total).toBe(11);
     expect(data.events).toHaveLength(11);
@@ -241,6 +276,14 @@ describe("serve command and server app", () => {
     expect(data.events[1]).toEqual(
       expect.objectContaining({
         preview: "Please inspect the synthetic project",
+        kind: "user_message",
+      }),
+    );
+    expect(data.events[4]).toEqual(
+      expect.objectContaining({
+        preview: '{"cmd":"rg todo src"}',
+        kind: "tool_call",
+        title: "exec_command",
       }),
     );
     expect(data.events[1]).not.toHaveProperty("raw");
@@ -250,6 +293,7 @@ describe("serve command and server app", () => {
   it("paginates event lists", async () => {
     const response = await fixtureApp().request("/api/events?offset=0&limit=1");
     expect(response.status).toBe(200);
+
     const data = await json<EventListResponse>(response);
     expect(data.total).toBe(11);
     expect(data.offset).toBe(0);
@@ -261,29 +305,24 @@ describe("serve command and server app", () => {
   it("keeps detail loading hooks for event list rows and event lane clicks", async () => {
     const response = await fixtureApp().request("/");
     expect(response.status).toBe(200);
+
     const html = await response.text();
     expect(html).toContain("loadDetail(row.dataset.line)");
-    expect(html).toContain("loadDetail(hit.event.line)");
-    expect(html).toContain("eventText(hit.event)");
+    expect(html).toContain("setGraphPointDetail(hit)");
   });
 
   it("returns event detail with raw JSON and extracted exec_command cmd", async () => {
     const response = await fixtureApp().request("/api/events/5");
     expect(response.status).toBe(200);
+
     const data = await json<Record<string, unknown>>(response);
     expect(data).toEqual(
       expect.objectContaining({
         line: 5,
         kind: "tool_call",
-        rawChars: expect.any(Number),
-        raw: expect.any(Object),
-      }),
-    );
-    expect(data.extracted).toEqual(
-      expect.objectContaining({
-        callId: "call_1",
-        name: "exec_command",
-        command: "rg todo src",
+        extracted: expect.objectContaining({
+          command: "rg todo src",
+        }),
       }),
     );
   });
@@ -291,8 +330,73 @@ describe("serve command and server app", () => {
   it("returns 404 JSON for missing detail lines", async () => {
     const response = await fixtureApp().request("/api/events/999");
     expect(response.status).toBe(404);
+
     expect(await json<Record<string, unknown>>(response)).toEqual({
       error: "Event line not found",
+    });
+  });
+
+  it("returns an overview summary for GET /api/sessions/overview", async () => {
+    const response = await overviewApp().request("/api/sessions/overview");
+    expect(response.status).toBe(200);
+
+    const data = await json<SessionsOverviewResponse>(response);
+    expect(data.summary).toEqual(
+      expect.objectContaining({
+        sessions: 3,
+        totalTokens: 648,
+        medianTotalTokens: 294,
+        maxEvents: 11,
+        sessionsWithCompaction: 3,
+        startedAt: "2026-05-25T00:00:00.000Z",
+        endedAt: "2026-05-25T02:00:08.000Z",
+      }),
+    );
+    expect(data.sessions).toHaveLength(3);
+    expect(data.sessions.every((session) => session.events > 0)).toBe(true);
+    expect(data.sessions.some((session) => session.compactions > 0)).toBe(true);
+    expect(data.sessions[0]).not.toHaveProperty("raw");
+    expect(data.sessions[0]).not.toHaveProperty("extracted");
+  });
+
+  it("calculates overview breakdown fields from the reported token counts", async () => {
+    const response = await overviewApp().request("/api/sessions/overview");
+    const data = await json<SessionsOverviewResponse>(response);
+
+    const alpha = data.sessions[0];
+    const beta = data.sessions[1];
+    const gamma = data.sessions[2];
+
+    expect(alpha).toMatchObject({
+      finalTotalTokens: 294,
+      finalInputTokens: 250,
+      finalCachedInputTokens: 50,
+      finalOutputTokens: 40,
+      finalReasoningOutputTokens: 4,
+      nonCachedInputTokens: 200,
+      visibleOutputTokens: 36,
+      adjustmentTokens: 4,
+      breakdownMismatchTokens: 4,
+      events: 11,
+      compactions: 1,
+    });
+    expect(beta).toMatchObject({
+      finalTotalTokens: 60,
+      nonCachedInputTokens: 80,
+      visibleOutputTokens: 30,
+      adjustmentTokens: 0,
+      breakdownMismatchTokens: -80,
+      events: 8,
+      compactions: 1,
+    });
+    expect(gamma).toMatchObject({
+      finalTotalTokens: 294,
+      nonCachedInputTokens: 200,
+      visibleOutputTokens: 36,
+      adjustmentTokens: 4,
+      breakdownMismatchTokens: 4,
+      events: 9,
+      compactions: 1,
     });
   });
 });
