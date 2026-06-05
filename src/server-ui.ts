@@ -1206,7 +1206,9 @@ export const overviewHtml = (): string => `
         setSummary(state.data.summary);
         renderRankingTable();
         scheduleRenderChart();
-        const first = state.data.sessions[0];
+        const first = [...state.data.sessions].sort(
+          (a, b) => (b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0),
+        )[0];
         if (first) {
           setDetail(first.sessionId);
         }

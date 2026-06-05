@@ -259,6 +259,8 @@ describe("serve command and server app", () => {
     expect(script).toContain("window.addEventListener('resize', scheduleRenderChart);");
     expect(script).toContain("if (viewportWidth <= 0 || chartHeight <= 0) return;");
     expect(script).not.toContain("chart.width = Math.round(chartWidth * dpr);");
+    expect(script).toContain("const first = [...state.data.sessions].sort(");
+    expect(script).toContain("(b.finalTotalTokens ?? 0) - (a.finalTotalTokens ?? 0)");
   });
 
   it("returns session summary and normalized pressure series", async () => {
